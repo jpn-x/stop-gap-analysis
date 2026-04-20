@@ -204,6 +204,7 @@
   .btn-y:hover, .btn-x:hover { opacity: 0.75; transform: scale(1.1); }
   .btn-y { background: #ff6600; }          /* Yahoo オレンジ */
   .btn-x { background: #000;   letter-spacing: -0.5px; } /* X ブラック */
+  .btn-k { background: #cc1100; font-style: italic; font-size: 12px; } /* 株探 レッド */
 
   .gap-pos  { color: #c62828; font-weight: 700; }
   .gap-neg  { color: #1565c0; font-weight: 700; }
@@ -621,7 +622,7 @@ function renderTable() {
     return sep + `<tr class="${rowClass}">
       <td>${r.stop_date}</td>
       <td>${r.next_date}</td>
-      <td><a href="https://kabutan.jp/stock/?code=${r.code}" target="_blank">${r.code}</a></td>
+      <td><a href="https://kabutan.jp/stock/?code=${r.code}" target="_blank" class="btn-k">K</a> <a href="https://kabutan.jp/stock/?code=${r.code}" target="_blank">${r.code}</a></td>
       <td>${snsLinks}${r.name}</td>
       <td>${r.market}</td>
       <td>${badge}</td>
