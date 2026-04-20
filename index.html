@@ -185,6 +185,26 @@
   .badge-low    { background: #e3f0ff; color: #1565c0; }
   .badge-yorazu { background: #fff3e0; color: #e65100; }
 
+  /* ===== Y/X ソーシャルリンクボタン ===== */
+  .sns-wrap { display: inline-flex; gap: 3px; margin-right: 5px; vertical-align: middle; }
+  .btn-y, .btn-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+    color: #fff;
+    line-height: 1;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-y:hover, .btn-x:hover { opacity: 0.75; transform: scale(1.1); }
+  .btn-y { background: #ff6600; }          /* Yahoo オレンジ */
+  .btn-x { background: #000;   letter-spacing: -0.5px; } /* X ブラック */
+
   .gap-pos  { color: #c62828; font-weight: 700; }
   .gap-neg  { color: #1565c0; font-weight: 700; }
   .gap-zero { color: #555;    font-weight: 700; }
@@ -593,11 +613,16 @@ function renderTable() {
     const yorazu = r.yorazu === "True"
       ? '<span class="badge badge-yorazu">寄らず</span>' : "";
 
+    // Y/X ソーシャルリンク
+    const yUrl = `https://finance.yahoo.co.jp/cm/message/${r.code}`;
+    const xUrl = `https://x.com/search?q=${encodeURIComponent(r.code + " " + r.name + " 株")}`;
+    const snsLinks = `<span class="sns-wrap"><a href="${yUrl}" target="_blank" class="btn-y">Y</a><a href="${xUrl}" target="_blank" class="btn-x">X</a></span>`;
+
     return sep + `<tr class="${rowClass}">
       <td>${r.stop_date}</td>
       <td>${r.next_date}</td>
       <td><a href="https://kabutan.jp/stock/?code=${r.code}" target="_blank">${r.code}</a></td>
-      <td>${r.name}</td>
+      <td>${snsLinks}${r.name}</td>
       <td>${r.market}</td>
       <td>${badge}</td>
       <td>${prevClose}</td>
