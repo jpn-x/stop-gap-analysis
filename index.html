@@ -187,7 +187,7 @@
 
   /* ===== Y/X ソーシャルリンクボタン ===== */
   .sns-wrap { display: inline-flex; gap: 3px; margin-right: 5px; vertical-align: middle; }
-  .btn-y, .btn-x {
+  .btn-y, .btn-x, .btn-k {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -201,10 +201,10 @@
     line-height: 1;
     transition: opacity 0.15s, transform 0.1s;
   }
-  .btn-y:hover, .btn-x:hover { opacity: 0.75; transform: scale(1.1); }
-  .btn-y { background: #ff6600; }          /* Yahoo オレンジ */
-  .btn-x { background: #000;   letter-spacing: -0.5px; } /* X ブラック */
-  .btn-k { background: #cc1100; font-style: italic; font-size: 12px; } /* 株探 レッド */
+  .btn-y:hover, .btn-x:hover, .btn-k:hover { opacity: 0.75; transform: scale(1.1); }
+  .btn-y { background: #ff6600; }                        /* Yahoo オレンジ */
+  .btn-x { background: #000; letter-spacing: -0.5px; }  /* X ブラック */
+  .btn-k { background: #cc1100; font-style: italic; }   /* 株探 レッド */
 
   .gap-pos  { color: #c62828; font-weight: 700; }
   .gap-neg  { color: #1565c0; font-weight: 700; }
@@ -479,7 +479,16 @@ function sortRows() {
     }
     if (av < bv) return sortAsc ? -1 :  1;
     if (av > bv) return sortAsc ?  1 : -1;
-    return 0;
+
+    // 同一日内: S高を先・S安を後、それぞれコード番号順
+    if (a.stop_date === b.stop_date) {
+      if (a.stop_type !== b.stop_type) {
+        return a.stop_type === "stop_high" ? -1 : 1;
+      }
+    }
+    const ca = parseInt(a.code) || 0;
+    const cb = parseInt(b.code) || 0;
+    return ca < cb ? -1 : ca > cb ? 1 : 0;
   });
 }
 
