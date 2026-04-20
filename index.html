@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ストップ高安 寄り付きギャップ分析</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 13px;
+    background: #f0f2f5;
+    color: #222;
+  }
+
+  header {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  header h1 { font-size: 18px; font-weight: 700; }
+  header .sub { font-size: 12px; color: #aab; margin-top: 2px; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #fff;
+    border-bottom: 1px solid #dde;
+    align-items: center;
+  }
+  .controls label { font-size: 12px; color: #555; margin-right: 4px; }
+  select, input[type="text"], input[type="date"] {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  .filter-group { display: flex; align-items: center; gap: 4px; }
+
+  .stats {
+    display: flex;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #fff;
+    border-bottom: 1px solid #dde;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    background: #f8f9fc;
+    border: 1px solid #e0e4ef;
+    border-radius: 6px;
+    padding: 8px 14px;
+    text-align: center;
+    min-width: 100px;
+  }
+  .stat-card .val { font-size: 20px; font-weight: 700; }
+  .stat-card .lbl { font-size: 11px; color: #777; }
+  .pos { color: #d32f2f; }
+  .neg { color: #1565c0; }
+
+  .table-wrap {
+    overflow-x: auto;
+    padding: 12px 16px;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  thead { background: #1a1a2e; color: #fff; }
+  thead th {
+    padding: 9px 10px;
+    text-align: left;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  thead th:hover { background: #2a2a4e; }
+  thead th.sorted-asc::after  { content: ' ▲'; font-size: 10px; }
+  thead th.sorted-desc::after { content: ' ▼'; font-size: 10px; }
+
+  tbody tr:hover { background: #f5f7ff; }
+  tbody tr:nth-child(even) { background: #fafbff; }
+  tbody tr:nth-child(even):hover { background: #f0f3ff; }
+  td { padding: 7px 10px; border-bottom: 1px solid #eef; white-space: nowrap; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-high { background: #fde8e8; color: #c62828; }
+  .badge-low  { background: #e3f0ff; color: #1565c0; }
+  .badge-yorazu { background: #fff3e0; color: #e65100; }
+
+  .gap-pos { color: #c62828; font-weight: 600; }
+  .gap-neg { color: #1565c0; font-weight: 600; }
+  .gap-zero { color: #555; }
+
+  .loading { text-align: center; padding: 40px; color: #888; font-size: 15px; }
+  .error { text-align: center; padding: 40px; color: #c00; }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: #fff;
+    border-top: 1px solid #eef;
+  }
+  .pagination button {
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .pagination button:hover { background: #eef; }
+  .pagination button:disabled { opacity: .4; cursor: default; }
+  .pagination .page-info { font-size: 12px; color: #666; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>ストップ高安 寄り付きギャップ分析</h1>
+    <div class="sub">前営業日ストップ高安銘柄 → 翌営業日始値のギャップ一覧</div>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="filter-group">
+    <label>区分</label>
+    <select id="filterType">
+      <option value="">すべて</option>
+      <option value="stop_high">ストップ高</option>
+      <option value="stop_low">ストップ安</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>市場</label>
+    <select id="filterMarket"><option value="">すべて</option></select>
+  </div>
+  <div class="filter-group">
+    <label>ストップ日 From</label>
+    <input type="date" id="filterDateFrom">
+  </div>
+  <div class="filter-group">
+    <label>To</label>
+    <input type="date" id="filterDateTo">
+  </div>
+  <div class="filter-group">
+    <label>銘柄コード</label>
+    <input type="text" id="filterCode" placeholder="例: 3103" style="width:90px">
+  </div>
+  <div class="filter-group">
+    <label>表示件数</label>
+    <select id="pageSize">
+      <option value="50">50</option>
+      <option value="100" selected>100</option>
+      <option value="200">200</option>
+      <option value="9999">全件</option>
+    </select>
+  </div>
+</div>
+
+<div class="stats" id="statsBar"></div>
+
+<div class="table-wrap">
+  <div class="loading" id="loading">データ読み込み中...</div>
+  <table id="mainTable" style="display:none">
+    <thead>
+      <tr>
+        <th data-col="stop_date">ストップ日</th>
+        <th data-col="next_date">翌営業日</th>
+        <th data-col="code">コード</th>
+        <th data-col="name">銘柄名</th>
+        <th data-col="market">市場</th>
+        <th data-col="stop_type">区分</th>
+        <th data-col="prev_close">前日終値</th>
+        <th data-col="next_open">翌日始値</th>
+        <th data-col="gap_yen">ギャップ(円)</th>
+        <th data-col="gap_pct">ギャップ(%)</th>
+        <th data-col="volume">出来高</th>
+        <th data-col="yorazu">寄らず</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<div class="pagination" id="pagination" style="display:none">
+  <button id="btnFirst" onclick="goPage(1)">«</button>
+  <button id="btnPrev"  onclick="goPage(currentPage-1)">‹</button>
+  <span class="page-info" id="pageInfo"></span>
+  <button id="btnNext"  onclick="goPage(currentPage+1)">›</button>
+  <button id="btnLast"  onclick="goPage(totalPages)">»</button>
+</div>
+
+<script>
+const CSV_URL = "data/gap_data.csv";
+let allRows = [];
+let filtered = [];
+let currentPage = 1;
+let totalPages = 1;
+let sortCol = "stop_date";
+let sortAsc = false;
+
+async function loadCSV() {
+  try {
+    const resp = await fetch(CSV_URL + "?t=" + Date.now());
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const text = await resp.text();
+    return parseCSV(text);
+  } catch (e) {
+    document.getElementById("loading").innerHTML =
+      `<div class="error">データの読み込みに失敗しました。<br>${e.message}</div>`;
+    return [];
+  }
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map(h => h.trim().replace(/^\uFEFF/, ""));
+  return lines.slice(1).map(line => {
+    const vals = line.split(",");
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (vals[i] || "").trim());
+    return obj;
+  });
+}
+
+function populateMarkets(rows) {
+  const markets = [...new Set(rows.map(r => r.market).filter(Boolean))].sort();
+  const sel = document.getElementById("filterMarket");
+  markets.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m; opt.textContent = m;
+    sel.appendChild(opt);
+  });
+}
+
+function applyFilters() {
+  const type   = document.getElementById("filterType").value;
+  const market = document.getElementById("filterMarket").value;
+  const from   = document.getElementById("filterDateFrom").value;
+  const to     = document.getElementById("filterDateTo").value;
+  const code   = document.getElementById("filterCode").value.trim();
+
+  filtered = allRows.filter(r => {
+    if (type   && r.stop_type !== type) return false;
+    if (market && r.market !== market) return false;
+    if (from   && r.stop_date < from) return false;
+    if (to     && r.stop_date > to) return false;
+    if (code   && r.code !== code) return false;
+    return true;
+  });
+
+  sortRows();
+  currentPage = 1;
+  renderStats();
+  renderTable();
+}
+
+function sortRows() {
+  filtered.sort((a, b) => {
+    let av = a[sortCol] ?? "";
+    let bv = b[sortCol] ?? "";
+    // 数値カラムは数値比較
+    if (["prev_close","next_open","gap_yen","gap_pct","volume"].includes(sortCol)) {
+      av = parseFloat(av) || 0;
+      bv = parseFloat(bv) || 0;
+    }
+    if (av < bv) return sortAsc ? -1 : 1;
+    if (av > bv) return sortAsc ? 1 : -1;
+    return 0;
+  });
+}
+
+function renderStats() {
+  const valid = filtered.filter(r => r.gap_pct && r.gap_pct !== "");
+  const gaps = valid.map(r => parseFloat(r.gap_pct));
+
+  const avg  = gaps.length ? (gaps.reduce((a,b)=>a+b,0)/gaps.length).toFixed(2) : "—";
+  const pos  = gaps.filter(g => g > 0).length;
+  const neg  = gaps.filter(g => g < 0).length;
+  const zer  = gaps.filter(g => g === 0).length;
+  const yorazu = filtered.filter(r => r.yorazu === "True").length;
+
+  document.getElementById("statsBar").innerHTML = `
+    <div class="stat-card"><div class="val">${filtered.length}</div><div class="lbl">銘柄数</div></div>
+    <div class="stat-card"><div class="val">${avg}%</div><div class="lbl">平均ギャップ</div></div>
+    <div class="stat-card"><div class="val pos">${pos}</div><div class="lbl">ギャップアップ</div></div>
+    <div class="stat-card"><div class="val neg">${neg}</div><div class="lbl">ギャップダウン</div></div>
+    <div class="stat-card"><div class="val">${zer}</div><div class="lbl">ギャップなし</div></div>
+    <div class="stat-card"><div class="val">${yorazu}</div><div class="lbl">寄らず</div></div>
+  `;
+}
+
+function renderTable() {
+  const ps = parseInt(document.getElementById("pageSize").value);
+  totalPages = ps >= 9999 ? 1 : Math.max(1, Math.ceil(filtered.length / ps));
+  currentPage = Math.min(currentPage, totalPages);
+
+  const start = ps >= 9999 ? 0 : (currentPage - 1) * ps;
+  const end   = ps >= 9999 ? filtered.length : Math.min(start + ps, filtered.length);
+  const page  = filtered.slice(start, end);
+
+  const tbody = document.getElementById("tableBody");
+  tbody.innerHTML = page.map(r => {
+    const gp = parseFloat(r.gap_pct);
+    const gpClass = isNaN(gp) ? "" : gp > 0 ? "gap-pos" : gp < 0 ? "gap-neg" : "gap-zero";
+    const gpTxt = isNaN(gp) ? "—" : (gp > 0 ? "+" : "") + gp.toFixed(2) + "%";
+    const gyTxt = r.gap_yen && r.gap_yen !== "" ?
+      (parseFloat(r.gap_yen) > 0 ? "+" : "") + parseFloat(r.gap_yen).toFixed(1) : "—";
+    const openTxt = r.next_open && r.next_open !== "" ?
+      parseFloat(r.next_open).toLocaleString() : "—";
+
+    const badge = r.stop_type === "stop_high"
+      ? '<span class="badge badge-high">高</span>'
+      : '<span class="badge badge-low">安</span>';
+    const yorazu = r.yorazu === "True"
+      ? '<span class="badge badge-yorazu">寄らず</span>' : "";
+
+    const vol = r.volume && r.volume !== "" ?
+      parseInt(r.volume).toLocaleString() : "—";
+
+    return `<tr>
+      <td>${r.stop_date}</td>
+      <td>${r.next_date}</td>
+      <td><a href="https://kabutan.jp/stock/?code=${r.code}" target="_blank">${r.code}</a></td>
+      <td>${r.name}</td>
+      <td>${r.market}</td>
+      <td>${badge}</td>
+      <td style="text-align:right">${parseFloat(r.prev_close).toLocaleString()}</td>
+      <td style="text-align:right">${openTxt}</td>
+      <td style="text-align:right" class="${gpClass}">${gyTxt}</td>
+      <td style="text-align:right" class="${gpClass}">${gpTxt}</td>
+      <td style="text-align:right">${vol}</td>
+      <td>${yorazu}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("mainTable").style.display = "";
+  document.getElementById("loading").style.display = "none";
+
+  // ページネーション
+  const pag = document.getElementById("pagination");
+  if (totalPages <= 1 && filtered.length <= ps) {
+    pag.style.display = "none";
+  } else {
+    pag.style.display = "flex";
+    document.getElementById("pageInfo").textContent =
+      `${start + 1}–${end} / ${filtered.length}件  (${currentPage}/${totalPages}ページ)`;
+    document.getElementById("btnFirst").disabled = currentPage === 1;
+    document.getElementById("btnPrev").disabled  = currentPage === 1;
+    document.getElementById("btnNext").disabled  = currentPage === totalPages;
+    document.getElementById("btnLast").disabled  = currentPage === totalPages;
+  }
+}
+
+function goPage(p) {
+  currentPage = Math.max(1, Math.min(p, totalPages));
+  renderTable();
+}
+
+// ソート
+document.querySelectorAll("thead th[data-col]").forEach(th => {
+  th.addEventListener("click", () => {
+    const col = th.dataset.col;
+    if (sortCol === col) { sortAsc = !sortAsc; }
+    else { sortCol = col; sortAsc = false; }
+    document.querySelectorAll("thead th").forEach(t => t.classList.remove("sorted-asc","sorted-desc"));
+    th.classList.add(sortAsc ? "sorted-asc" : "sorted-desc");
+    sortRows();
+    renderTable();
+  });
+});
+
+// フィルター変更
+["filterType","filterMarket","filterDateFrom","filterDateTo","filterCode","pageSize"]
+  .forEach(id => document.getElementById(id).addEventListener("change", applyFilters));
+document.getElementById("filterCode").addEventListener("input", applyFilters);
+
+// 初期化
+(async () => {
+  allRows = await loadCSV();
+  if (!allRows.length) return;
+  populateMarkets(allRows);
+  filtered = [...allRows];
+  sortRows();
+  renderStats();
+  renderTable();
+})();
+</script>
+</body>
+</html>

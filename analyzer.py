@@ -1,0 +1,281 @@
+"""
+ストップ高安 翌営業日 寄り付きギャップ分析スクリプト
+
+使い方:
+  python analyzer.py              # 前営業日分のみ処理（毎日自動実行用）
+  python analyzer.py --backfill   # stock_data.json の全履歴を一括処理
+"""
+
+import json
+import sys
+import time
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+import jpholiday
+import pandas as pd
+import requests
+import yfinance as yf
+
+JST = timezone(timedelta(hours=9))
+STOP_DATA_URL = "https://raw.githubusercontent.com/stopstock/stop-data/main/data/stock_data.json"
+DATA_DIR = Path("data")
+GAP_CSV = DATA_DIR / "gap_data.csv"
+
+CSV_COLUMNS = [
+    "stop_date",   # ストップ高安日
+    "next_date",   # 翌営業日
+    "code",        # 銘柄コード
+    "name",        # 銘柄名
+    "market",      # 市場
+    "stop_type",   # stop_high / stop_low
+    "prev_close",  # ストップ日終値
+    "next_open",   # 翌営業日始値（寄らずの場合は None）
+    "gap_yen",     # ギャップ（円）
+    "gap_pct",     # ギャップ（%）
+    "volume",      # 翌営業日出来高
+    "yorazu",      # 寄らずフラグ（True=寄らず）
+]
+
+
+# ── 営業日ユーティリティ ──────────────────────────────────────────────────────
+
+def is_business_day(d: date) -> bool:
+    return d.weekday() < 5 and not jpholiday.is_holiday(d)
+
+
+def next_business_day(d: date) -> date:
+    nd = d + timedelta(days=1)
+    while not is_business_day(nd):
+        nd += timedelta(days=1)
+    return nd
+
+
+def prev_business_day(d: date) -> date:
+    pd_ = d - timedelta(days=1)
+    while not is_business_day(pd_):
+        pd_ -= timedelta(days=1)
+    return pd_
+
+
+# ── データ取得 ────────────────────────────────────────────────────────────────
+
+def fetch_stop_data() -> dict:
+    """stopstock.github.io から stock_data.json を取得"""
+    print("stock_data.json 取得中...")
+    resp = requests.get(STOP_DATA_URL, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def fetch_price_data(code: str, target_date: date) -> dict | None:
+    """
+    yfinance で指定銘柄・指定日の始値・出来高を取得。
+    東証銘柄は code + '.T' で取得（例: 3103.T, 281A.T）。
+    """
+    ticker_str = f"{code}.T"
+    start = target_date.strftime("%Y-%m-%d")
+    end = (target_date + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    try:
+        ticker = yf.Ticker(ticker_str)
+        hist = ticker.history(start=start, end=end, auto_adjust=True)
+
+        if hist.empty:
+            return None
+
+        row = hist.iloc[0]
+        open_price = float(row["Open"])
+        volume = int(row["Volume"])
+
+        # 寄らず判定: 出来高ゼロ、または始値がゼロ
+        yorazu = volume == 0 or open_price == 0
+
+        return {
+            "open": round(open_price, 1) if open_price else None,
+            "volume": volume,
+            "yorazu": yorazu,
+        }
+    except Exception as e:
+        print(f"    ⚠ {code} 取得失敗: {e}")
+        return None
+
+
+# ── CSV 操作 ──────────────────────────────────────────────────────────────────
+
+def load_existing() -> pd.DataFrame:
+    if GAP_CSV.exists():
+        return pd.read_csv(GAP_CSV, dtype=str)
+    return pd.DataFrame(columns=CSV_COLUMNS)
+
+
+def save_csv(df: pd.DataFrame):
+    DATA_DIR.mkdir(exist_ok=True)
+    df.to_csv(GAP_CSV, index=False, encoding="utf-8-sig")
+
+
+# ── Google Sheets 更新（オプション） ──────────────────────────────────────────
+
+def update_google_sheets(df: pd.DataFrame):
+    """
+    環境変数 GOOGLE_CREDENTIALS（JSON文字列）と GOOGLE_SHEET_ID が
+    設定されている場合のみ実行。
+    """
+    import os
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+    sheet_id = os.environ.get("GOOGLE_SHEET_ID")
+
+    if not creds_json or not sheet_id:
+        print("Google Sheets の環境変数未設定 → スキップ")
+        return
+
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+
+        creds_dict = json.loads(creds_json)
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_key(sheet_id)
+
+        worksheet = sh.get_worksheet(0)
+        worksheet.clear()
+
+        # ヘッダー + データ
+        header = list(df.columns)
+        rows = df.fillna("").values.tolist()
+        worksheet.update([header] + rows)
+        print(f"Google Sheets 更新完了: {len(rows)} 行")
+
+    except Exception as e:
+        print(f"⚠ Google Sheets 更新失敗: {e}")
+
+
+# ── メイン処理 ────────────────────────────────────────────────────────────────
+
+def process_day(
+    stop_date_str: str,
+    day_data: dict,
+    existing_keys: set,
+    today: date,
+) -> list[dict]:
+    """1日分のストップ高安銘柄を処理してギャップデータのリストを返す"""
+    stop_date = date.fromisoformat(stop_date_str)
+    nbd = next_business_day(stop_date)
+
+    # 翌営業日がまだ来ていない場合はスキップ
+    if nbd > today:
+        return []
+
+    results = []
+
+    for stop_type in ("stop_high", "stop_low"):
+        for stock in day_data.get(stop_type, []):
+            code = stock["code"]
+            key = f"{stop_date_str}_{code}_{stop_type}"
+
+            if key in existing_keys:
+                continue  # 処理済みはスキップ
+
+            prev_close_str = stock.get("price", "").replace(",", "")
+            try:
+                prev_close = float(prev_close_str)
+            except ValueError:
+                continue
+
+            label = "ストップ高" if stop_type == "stop_high" else "ストップ安"
+            print(f"  [{label}] {code} {stock['name']}  終値={prev_close}円 → {nbd} 始値取得中...")
+
+            price_data = fetch_price_data(code, nbd)
+            time.sleep(0.4)  # レート制限対策
+
+            if price_data and price_data["open"]:
+                next_open = price_data["open"]
+                gap_yen = round(next_open - prev_close, 1)
+                gap_pct = round((next_open - prev_close) / prev_close * 100, 2)
+                volume = price_data["volume"]
+                yorazu = price_data["yorazu"]
+            else:
+                next_open = None
+                gap_yen = None
+                gap_pct = None
+                volume = price_data["volume"] if price_data else None
+                yorazu = True
+
+            results.append({
+                "stop_date": stop_date_str,
+                "next_date": nbd.isoformat(),
+                "code": code,
+                "name": stock["name"],
+                "market": stock["market"],
+                "stop_type": stop_type,
+                "prev_close": prev_close,
+                "next_open": next_open,
+                "gap_yen": gap_yen,
+                "gap_pct": gap_pct,
+                "volume": volume,
+                "yorazu": yorazu,
+            })
+
+    return results
+
+
+def main():
+    backfill = "--backfill" in sys.argv
+    today = datetime.now(JST).date()
+
+    all_stop_data = fetch_stop_data()
+
+    # 全日付をフラットなリストに展開
+    all_days: list[dict] = []
+    for month_list in all_stop_data.values():
+        for day_data in month_list:
+            all_days.append(day_data)
+
+    all_days.sort(key=lambda x: x["date"])  # 古い順
+
+    if not backfill:
+        # 通常モード: 前営業日のみ
+        target = prev_business_day(today)
+        all_days = [d for d in all_days if d["date"] == target.isoformat()]
+        print(f"対象日: {target} ({len(all_days)} 件)")
+    else:
+        print(f"バックフィルモード: {len(all_days)} 日分を処理")
+
+    existing_df = load_existing()
+    existing_keys: set[str] = set()
+    if not existing_df.empty:
+        existing_keys = {
+            f"{r.stop_date}_{r.code}_{r.stop_type}"
+            for r in existing_df.itertuples()
+        }
+
+    all_results: list[dict] = []
+    for day_data in all_days:
+        date_str = day_data["date"]
+        stop_high_cnt = len(day_data.get("stop_high", []))
+        stop_low_cnt = len(day_data.get("stop_low", []))
+        print(f"\n=== {date_str}  高:{stop_high_cnt} 安:{stop_low_cnt} ===")
+        all_results.extend(process_day(date_str, day_data, existing_keys, today))
+
+    if not all_results:
+        print("\n新規データなし。終了。")
+        return
+
+    new_df = pd.DataFrame(all_results, columns=CSV_COLUMNS)
+    combined = pd.concat([existing_df, new_df], ignore_index=True)
+    combined = combined.drop_duplicates(subset=["stop_date", "code", "stop_type"], keep="last")
+    combined = combined.sort_values(["stop_date", "code"], ascending=[False, True])
+    save_csv(combined)
+
+    print(f"\n完了: {len(all_results)} 件追加 -> {GAP_CSV}  (合計: {len(combined)} 件)")
+
+    update_google_sheets(combined)
+
+
+if __name__ == "__main__":
+    main()
