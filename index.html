@@ -26,6 +26,14 @@
   header h1 { font-size: 19px; font-weight: 700; }
   header .sub { font-size: 13px; color: #aab; margin-top: 2px; }
 
+  /* ===== スクロール追従バー ===== */
+  #stickyTop {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  }
+
   .controls {
     display: flex;
     flex-wrap: wrap;
@@ -51,10 +59,6 @@
     background: #fff;
     border-bottom: 1px solid #dde;
     flex-wrap: wrap;
-    position: sticky;
-    top: 0;
-    z-index: 200;
-    box-shadow: 0 2px 6px rgba(0,0,0,.12);
   }
   .stat-card {
     background: #f8f9fc;
@@ -127,16 +131,38 @@
   .gap-neg { color: #1565c0; font-weight: 600; }
   .gap-zero { color: #555; }
 
-  /* 列ラベル */
-  .lbl { font-size: 11px; font-weight: 700; margin-right: 3px;
-         padding: 1px 3px; border-radius: 3px; vertical-align: middle; }
+  /* ===== 列ラベル ===== */
+  .lbl {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    vertical-align: middle;
+    flex-shrink: 0;
+  }
   .lbl-prev  { color: #fff; background: #333; }
-  .lbl-yori  { color: #fff; background: #2e7d32; }
+  .lbl-yori  { color: #fff; background: #1565c0; }
   .lbl-close { color: #fff; background: #6d4c41; }
   .lbl-vol   { color: #fff; background: #6a1b9a; }
 
+  /* ===== 数値セル（ラベル＋数字のflex整列） ===== */
+  .num-wrap {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .num-wrap .lbl {
+    width: 24px;
+    text-align: center;
+  }
+  .num-wrap .nv {
+    flex: 1;
+    text-align: right;
+  }
+
   /* 取得中セル */
   .pending { color: #aaa; font-style: italic; font-size: 12px; }
+  .pending-wrap { text-align: right; }
 
   .loading { text-align: center; padding: 40px; color: #888; font-size: 16px; }
   .error { text-align: center; padding: 40px; color: #c00; }
@@ -172,43 +198,46 @@
   </div>
 </header>
 
-<div class="controls">
-  <div class="filter-group">
-    <label>区分</label>
-    <select id="filterType">
-      <option value="">すべて</option>
-      <option value="stop_high">ストップ高</option>
-      <option value="stop_low">ストップ安</option>
-    </select>
+<!-- スクロール追従エリア（コントロール＋スタッツ） -->
+<div id="stickyTop">
+  <div class="controls">
+    <div class="filter-group">
+      <label>区分</label>
+      <select id="filterType">
+        <option value="">すべて</option>
+        <option value="stop_high">ストップ高</option>
+        <option value="stop_low">ストップ安</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>市場</label>
+      <select id="filterMarket"><option value="">すべて</option></select>
+    </div>
+    <div class="filter-group">
+      <label>ストップ日 From</label>
+      <input type="date" id="filterDateFrom">
+    </div>
+    <div class="filter-group">
+      <label>To</label>
+      <input type="date" id="filterDateTo">
+    </div>
+    <div class="filter-group">
+      <label>銘柄コード</label>
+      <input type="text" id="filterCode" placeholder="例: 3103" style="width:90px">
+    </div>
+    <div class="filter-group">
+      <label>表示件数</label>
+      <select id="pageSize">
+        <option value="50">50</option>
+        <option value="100">100</option>
+        <option value="200" selected>200</option>
+        <option value="9999">全件</option>
+      </select>
+    </div>
   </div>
-  <div class="filter-group">
-    <label>市場</label>
-    <select id="filterMarket"><option value="">すべて</option></select>
-  </div>
-  <div class="filter-group">
-    <label>ストップ日 From</label>
-    <input type="date" id="filterDateFrom">
-  </div>
-  <div class="filter-group">
-    <label>To</label>
-    <input type="date" id="filterDateTo">
-  </div>
-  <div class="filter-group">
-    <label>銘柄コード</label>
-    <input type="text" id="filterCode" placeholder="例: 3103" style="width:90px">
-  </div>
-  <div class="filter-group">
-    <label>表示件数</label>
-    <select id="pageSize">
-      <option value="50">50</option>
-      <option value="100">100</option>
-      <option value="200" selected>200</option>
-      <option value="9999">全件</option>
-    </select>
-  </div>
-</div>
 
-<div class="stats" id="statsBar"></div>
+  <div class="stats" id="statsBar"></div>
+</div>
 
 <div class="table-wrap">
   <div class="loading" id="loading">データ読み込み中...</div>
@@ -314,7 +343,6 @@ function sortRows() {
   filtered.sort((a, b) => {
     let av = a[sortCol] ?? "";
     let bv = b[sortCol] ?? "";
-    // 数値カラムは数値比較
     if (["prev_close","next_open","gap_yen","gap_pct","volume"].includes(sortCol)) {
       av = parseFloat(av) || 0;
       bv = parseFloat(bv) || 0;
@@ -333,15 +361,6 @@ function median(arr) {
 }
 
 function renderStats() {
-  const valid = filtered.filter(r => r.gap_pct && r.gap_pct !== "");
-  const gaps = valid.map(r => parseFloat(r.gap_pct));
-
-  const avg  = gaps.length ? (gaps.reduce((a,b)=>a+b,0)/gaps.length).toFixed(2) : "—";
-  const pos  = gaps.filter(g => g > 0).length;
-  const neg  = gaps.filter(g => g < 0).length;
-  const zer  = gaps.filter(g => g === 0).length;
-  const yorazu = filtered.filter(r => r.yorazu === "True").length;
-
   // S高・S安の中央値ギャップ（全蓄積データから計算）
   const highGaps = allRows
     .filter(r => r.stop_type === "stop_high" && r.gap_pct && r.gap_pct !== "")
@@ -352,20 +371,34 @@ function renderStats() {
 
   const medHigh = median(highGaps);
   const medLow  = median(lowGaps);
-  const fmtMed = (v) => v === null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+  const fmtMed  = v => v === null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
   const medHighCls = medHigh === null ? "" : medHigh > 0 ? "pos" : medHigh < 0 ? "neg" : "";
   const medLowCls  = medLow  === null ? "" : medLow  > 0 ? "pos" : medLow  < 0 ? "neg" : "";
 
+  const valid = filtered.filter(r => r.gap_pct && r.gap_pct !== "");
+  const gaps  = valid.map(r => parseFloat(r.gap_pct));
+  const pos   = gaps.filter(g => g > 0).length;
+  const neg   = gaps.filter(g => g < 0).length;
+  const zer   = gaps.filter(g => g === 0).length;
+  const yorazu = filtered.filter(r => r.yorazu === "True").length;
+
   document.getElementById("statsBar").innerHTML = `
     <div class="stat-card"><div class="val">${filtered.length}</div><div class="lbl">銘柄数</div></div>
-    <div class="stat-card"><div class="val">${avg}%</div><div class="lbl">平均ギャップ</div></div>
+    <div class="stat-card"><div class="val ${medHighCls}">${fmtMed(medHigh)}</div><div class="lbl">S高平均ギャップ</div></div>
+    <div class="stat-card"><div class="val ${medLowCls}">${fmtMed(medLow)}</div><div class="lbl">S安平均ギャップ</div></div>
     <div class="stat-card"><div class="val pos">${pos}</div><div class="lbl">ギャップアップ</div></div>
     <div class="stat-card"><div class="val neg">${neg}</div><div class="lbl">ギャップダウン</div></div>
     <div class="stat-card"><div class="val">${zer}</div><div class="lbl">ギャップなし</div></div>
     <div class="stat-card"><div class="val">${yorazu}</div><div class="lbl">寄らず</div></div>
-    <div class="stat-card"><div class="val ${medHighCls}">${fmtMed(medHigh)}</div><div class="lbl">S高平均ギャップ</div></div>
-    <div class="stat-card"><div class="val ${medLowCls}">${fmtMed(medLow)}</div><div class="lbl">S安平均ギャップ</div></div>
   `;
+
+  updateStickyTop();
+}
+
+// theadのtopをstickyTopの高さに合わせる
+function updateStickyTop() {
+  const h = document.getElementById("stickyTop").offsetHeight;
+  document.querySelector("thead").style.top = h + "px";
 }
 
 function renderTable() {
@@ -378,14 +411,20 @@ function renderTable() {
   const page  = filtered.slice(start, end);
 
   const tbody = document.getElementById("tableBody");
+
   // 今日の日付（JST）
   const todayJST = (() => {
     const d = new Date();
     return new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 10);
   })();
 
+  // ラベルバッジ
   const P = (cls, txt) => `<span class="lbl ${cls}">${txt}</span>`;
-  const PENDING = `<span class="pending">📊 取得中...</span>`;
+  // ラベル＋数値（固定幅ラベル＋右揃え数字）
+  const NW = (cls, lbl, val) =>
+    `<div class="num-wrap">${P(cls, lbl)}<span class="nv">${val}</span></div>`;
+  // 取得中
+  const PENDING = `<div class="pending-wrap"><span class="pending">📊 取得中...</span></div>`;
 
   let lastDate = null;
   let groupIdx = 0;
@@ -402,37 +441,39 @@ function renderTable() {
     }
     const rowClass = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
 
-    // 最新日（翌営業日が今日以降）は未確定列をグレー表示
     const isPending = r.next_date >= todayJST;
 
-    const prevClose = `${P('lbl-prev','前')}${parseFloat(r.prev_close).toLocaleString()}`;
+    // 前日終値
+    const prevClose = NW('lbl-prev', '前', parseFloat(r.prev_close).toLocaleString());
 
+    // ギャップ
     const gp  = parseFloat(r.gap_pct);
     const gpClass = isNaN(gp) ? "" : gp > 0 ? "gap-pos" : gp < 0 ? "gap-neg" : "gap-zero";
     const gpTxt = isNaN(gp) ? "—" : (gp > 0 ? "+" : "") + gp.toFixed(2) + "%";
     const gyTxt = r.gap_yen && r.gap_yen !== "" ?
       (parseFloat(r.gap_yen) > 0 ? "+" : "") + parseFloat(r.gap_yen).toFixed(1) : "—";
 
+    // 翌日始値
     const openVal = r.next_open && r.next_open !== "" ?
       parseFloat(r.next_open).toLocaleString() : "—";
-    const openTxt = isPending ? PENDING
-      : `${P('lbl-yori','寄')}${openVal}`;
+    const openTxt = isPending ? PENDING : NW('lbl-yori', '寄', openVal);
 
+    // 値幅
     const rv = parseFloat(r.range_pct);
     const rvClass = isNaN(rv) ? "" : rv > 0 ? "gap-pos" : rv < 0 ? "gap-neg" : "gap-zero";
     const rvTxt = isNaN(rv) ? "—" : (rv > 0 ? "+" : "") + rv.toFixed(2) + "%";
     const ryTxt = r.range_yen && r.range_yen !== "" ?
       (parseFloat(r.range_yen) > 0 ? "+" : "") + parseFloat(r.range_yen).toFixed(1) : "—";
 
+    // 当日終値
     const closeVal = r.next_close && r.next_close !== "" ?
       parseFloat(r.next_close).toLocaleString() : "—";
-    const closeTxt = isPending ? PENDING
-      : `${P('lbl-close','終')}${closeVal}`;
+    const closeTxt = isPending ? PENDING : NW('lbl-close', '終', closeVal);
 
+    // 出来高
     const volVal = r.volume && r.volume !== "" ?
       parseInt(r.volume).toLocaleString() : "—";
-    const volTxt = isPending ? PENDING
-      : `${P('lbl-vol','出')}${volVal}`;
+    const volTxt = isPending ? PENDING : NW('lbl-vol', '出', volVal);
 
     const badge = r.stop_type === "stop_high"
       ? '<span class="badge badge-high">高</span>'
@@ -447,14 +488,14 @@ function renderTable() {
       <td>${r.name}</td>
       <td>${r.market}</td>
       <td>${badge}</td>
-      <td style="text-align:right">${prevClose}</td>
-      <td style="text-align:right">${openTxt}</td>
-      <td style="text-align:right" class="${isPending?'pending':gpClass}">${isPending?'—':gyTxt}</td>
-      <td style="text-align:right" class="${isPending?'pending':gpClass}">${isPending?'—':gpTxt}</td>
-      <td style="text-align:right">${closeTxt}</td>
-      <td style="text-align:right" class="${isPending?'pending':rvClass}">${isPending?'—':ryTxt}</td>
-      <td style="text-align:right" class="${isPending?'pending':rvClass}">${isPending?'—':rvTxt}</td>
-      <td style="text-align:right">${volTxt}</td>
+      <td>${prevClose}</td>
+      <td>${openTxt}</td>
+      <td style="text-align:right" class="${isPending?'':gpClass}">${isPending?'—':gyTxt}</td>
+      <td style="text-align:right" class="${isPending?'':gpClass}">${isPending?'—':gpTxt}</td>
+      <td>${closeTxt}</td>
+      <td style="text-align:right" class="${isPending?'':rvClass}">${isPending?'—':ryTxt}</td>
+      <td style="text-align:right" class="${isPending?'':rvClass}">${isPending?'—':rvTxt}</td>
+      <td>${volTxt}</td>
       <td>${yorazu}</td>
     </tr>`;
   }).join("");
@@ -494,6 +535,9 @@ document.querySelectorAll("thead th[data-col]").forEach(th => {
     renderTable();
   });
 });
+
+// リサイズ時にもstickyTopを再計算
+window.addEventListener("resize", updateStickyTop);
 
 // フィルター変更
 ["filterType","filterMarket","filterDateFrom","filterDateTo","filterCode","pageSize"]
