@@ -122,6 +122,17 @@
   .gap-neg { color: #1565c0; font-weight: 600; }
   .gap-zero { color: #555; }
 
+  /* 列ラベル */
+  .lbl { font-size: 10px; font-weight: 700; margin-right: 3px;
+         padding: 1px 3px; border-radius: 3px; vertical-align: middle; }
+  .lbl-prev  { color: #fff; background: #333; }
+  .lbl-yori  { color: #fff; background: #2e7d32; }
+  .lbl-close { color: #fff; background: #6d4c41; }
+  .lbl-vol   { color: #fff; background: #6a1b9a; }
+
+  /* 取得中セル */
+  .pending { color: #aaa; font-style: italic; font-size: 11px; }
+
   .loading { text-align: center; padding: 40px; color: #888; font-size: 15px; }
   .error { text-align: center; padding: 40px; color: #c00; }
 
@@ -339,6 +350,15 @@ function renderTable() {
   const page  = filtered.slice(start, end);
 
   const tbody = document.getElementById("tableBody");
+  // 今日の日付（JST）
+  const todayJST = (() => {
+    const d = new Date();
+    return new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+  })();
+
+  const P = (cls, txt) => `<span class="lbl ${cls}">${txt}</span>`;
+  const PENDING = `<span class="pending">📊 取得中...</span>`;
+
   let lastDate = null;
   let groupIdx = 0;
   tbody.innerHTML = page.map(r => {
@@ -346,34 +366,51 @@ function renderTable() {
     if (r.stop_date !== lastDate) {
       lastDate = r.stop_date;
       groupIdx = 0;
-      sep = `<tr class="date-sep"><td colspan="15">● ${r.stop_date}（翌営業日: ${r.next_date}）</td></tr>`;
+      const isLatest = r.next_date >= todayJST;
+      const label = isLatest
+        ? `● ${r.stop_date}（翌営業日: ${r.next_date}）　⚠ 当日データ取得中`
+        : `● ${r.stop_date}（翌営業日: ${r.next_date}）`;
+      sep = `<tr class="date-sep"><td colspan="15">${label}</td></tr>`;
     }
     const rowClass = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
-    const gp = parseFloat(r.gap_pct);
+
+    // 最新日（翌営業日が今日以降）は未確定列をグレー表示
+    const isPending = r.next_date >= todayJST;
+
+    const prevClose = `${P('lbl-prev','前')}${parseFloat(r.prev_close).toLocaleString()}`;
+
+    const gp  = parseFloat(r.gap_pct);
     const gpClass = isNaN(gp) ? "" : gp > 0 ? "gap-pos" : gp < 0 ? "gap-neg" : "gap-zero";
     const gpTxt = isNaN(gp) ? "—" : (gp > 0 ? "+" : "") + gp.toFixed(2) + "%";
     const gyTxt = r.gap_yen && r.gap_yen !== "" ?
       (parseFloat(r.gap_yen) > 0 ? "+" : "") + parseFloat(r.gap_yen).toFixed(1) : "—";
-    const openTxt = r.next_open && r.next_open !== "" ?
+
+    const openVal = r.next_open && r.next_open !== "" ?
       parseFloat(r.next_open).toLocaleString() : "—";
-
-    const badge = r.stop_type === "stop_high"
-      ? '<span class="badge badge-high">高</span>'
-      : '<span class="badge badge-low">安</span>';
-    const yorazu = r.yorazu === "True"
-      ? '<span class="badge badge-yorazu">寄らず</span>' : "";
-
-    const vol = r.volume && r.volume !== "" ?
-      parseInt(r.volume).toLocaleString() : "—";
-
-    const closeTxt = r.next_close && r.next_close !== "" ?
-      parseFloat(r.next_close).toLocaleString() : "—";
+    const openTxt = isPending ? PENDING
+      : `${P('lbl-yori','寄')}${openVal}`;
 
     const rv = parseFloat(r.range_pct);
     const rvClass = isNaN(rv) ? "" : rv > 0 ? "gap-pos" : rv < 0 ? "gap-neg" : "gap-zero";
     const rvTxt = isNaN(rv) ? "—" : (rv > 0 ? "+" : "") + rv.toFixed(2) + "%";
     const ryTxt = r.range_yen && r.range_yen !== "" ?
       (parseFloat(r.range_yen) > 0 ? "+" : "") + parseFloat(r.range_yen).toFixed(1) : "—";
+
+    const closeVal = r.next_close && r.next_close !== "" ?
+      parseFloat(r.next_close).toLocaleString() : "—";
+    const closeTxt = isPending ? PENDING
+      : `${P('lbl-close','終')}${closeVal}`;
+
+    const volVal = r.volume && r.volume !== "" ?
+      parseInt(r.volume).toLocaleString() : "—";
+    const volTxt = isPending ? PENDING
+      : `${P('lbl-vol','出')}${volVal}`;
+
+    const badge = r.stop_type === "stop_high"
+      ? '<span class="badge badge-high">高</span>'
+      : '<span class="badge badge-low">安</span>';
+    const yorazu = r.yorazu === "True"
+      ? '<span class="badge badge-yorazu">寄らず</span>' : "";
 
     return sep + `<tr class="${rowClass}">
       <td>${r.stop_date}</td>
@@ -382,14 +419,14 @@ function renderTable() {
       <td>${r.name}</td>
       <td>${r.market}</td>
       <td>${badge}</td>
-      <td style="text-align:right">${parseFloat(r.prev_close).toLocaleString()}</td>
+      <td style="text-align:right">${prevClose}</td>
       <td style="text-align:right">${openTxt}</td>
-      <td style="text-align:right" class="${gpClass}">${gyTxt}</td>
-      <td style="text-align:right" class="${gpClass}">${gpTxt}</td>
+      <td style="text-align:right" class="${isPending?'pending':gpClass}">${isPending?'—':gyTxt}</td>
+      <td style="text-align:right" class="${isPending?'pending':gpClass}">${isPending?'—':gpTxt}</td>
       <td style="text-align:right">${closeTxt}</td>
-      <td style="text-align:right" class="${rvClass}">${ryTxt}</td>
-      <td style="text-align:right" class="${rvClass}">${rvTxt}</td>
-      <td style="text-align:right">${vol}</td>
+      <td style="text-align:right" class="${isPending?'pending':rvClass}">${isPending?'—':ryTxt}</td>
+      <td style="text-align:right" class="${isPending?'pending':rvClass}">${isPending?'—':rvTxt}</td>
+      <td style="text-align:right">${volTxt}</td>
       <td>${yorazu}</td>
     </tr>`;
   }).join("");
