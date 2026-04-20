@@ -8,37 +8,46 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* ===== 全体レイアウト: 縦flex・画面高さ固定 ===== */
+  html, body {
+    height: 100%;
+  }
   body {
     font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
     font-size: 14px;
     background: #f0f2f5;
     color: #222;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden; /* bodyはスクロールしない */
   }
 
+  /* ===== ヘッダー ===== */
   header {
+    flex-shrink: 0;
     background: #1a1a2e;
     color: #fff;
-    padding: 14px 20px;
+    padding: 12px 20px;
     display: flex;
     align-items: center;
     gap: 16px;
   }
-  header h1 { font-size: 19px; font-weight: 700; }
+  header h1  { font-size: 19px; font-weight: 700; }
   header .sub { font-size: 13px; color: #aab; margin-top: 2px; }
 
-  /* ===== スクロール追従バー ===== */
+  /* ===== コントロール＋スタッツ（常時上固定） ===== */
   #stickyTop {
-    position: sticky;
-    top: 0;
-    z-index: 200;
+    flex-shrink: 0;
     box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    z-index: 10;
   }
 
   .controls {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    padding: 12px 16px;
+    padding: 10px 16px;
     background: #fff;
     border-bottom: 1px solid #dde;
     align-items: center;
@@ -55,7 +64,7 @@
   .stats {
     display: flex;
     gap: 12px;
-    padding: 10px 16px;
+    padding: 8px 16px;
     background: #fff;
     border-bottom: 1px solid #dde;
     flex-wrap: wrap;
@@ -64,7 +73,7 @@
     background: #f8f9fc;
     border: 1px solid #e0e4ef;
     border-radius: 6px;
-    padding: 8px 14px;
+    padding: 6px 14px;
     text-align: center;
     min-width: 100px;
   }
@@ -73,20 +82,30 @@
   .pos { color: #d32f2f; }
   .neg { color: #1565c0; }
 
+  /* ===== テーブルエリア（残り全高・スクロール） ===== */
   .table-wrap {
-    overflow-x: auto;
-    padding: 12px 16px;
+    flex: 1;
+    overflow: auto;   /* 縦横スクロール */
+    min-height: 0;    /* flexでの重要なhack */
+    padding: 10px 16px 0;
   }
 
   table {
     border-collapse: collapse;
     width: 100%;
     background: #fff;
-    border-radius: 8px;
-    overflow: hidden;
     box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    /* overflow:hidden は削除（stickyを妨害するため） */
   }
-  thead { background: #1a1a2e; color: #fff; position: sticky; top: 0; z-index: 100; }
+
+  /* theadをtable-wrap内でsticky */
+  thead {
+    background: #1a1a2e;
+    color: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
   thead th {
     padding: 9px 10px;
     text-align: left;
@@ -123,15 +142,15 @@
     font-size: 12px;
     font-weight: 600;
   }
-  .badge-high { background: #fde8e8; color: #c62828; }
-  .badge-low  { background: #e3f0ff; color: #1565c0; }
+  .badge-high   { background: #fde8e8; color: #c62828; }
+  .badge-low    { background: #e3f0ff; color: #1565c0; }
   .badge-yorazu { background: #fff3e0; color: #e65100; }
 
-  .gap-pos { color: #c62828; font-weight: 600; }
-  .gap-neg { color: #1565c0; font-weight: 600; }
+  .gap-pos  { color: #c62828; font-weight: 600; }
+  .gap-neg  { color: #1565c0; font-weight: 600; }
   .gap-zero { color: #555; }
 
-  /* ===== 列ラベル ===== */
+  /* ===== 列ラベル＋数値 ===== */
   .lbl {
     font-size: 11px;
     font-weight: 700;
@@ -145,34 +164,26 @@
   .lbl-close { color: #fff; background: #6d4c41; }
   .lbl-vol   { color: #fff; background: #6a1b9a; }
 
-  /* ===== 数値セル（ラベル＋数字のflex整列） ===== */
-  .num-wrap {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .num-wrap .lbl {
-    width: 24px;
-    text-align: center;
-  }
-  .num-wrap .nv {
-    flex: 1;
-    text-align: right;
-  }
+  /* ラベル＋数字を横flex（ラベル固定幅・数字右揃え） */
+  .num-wrap { display: flex; align-items: center; gap: 5px; }
+  .num-wrap .lbl { width: 24px; text-align: center; }
+  .num-wrap .nv  { flex: 1; text-align: right; }
 
-  /* 取得中セル */
-  .pending { color: #aaa; font-style: italic; font-size: 12px; }
+  /* 取得中 */
+  .pending      { color: #aaa; font-style: italic; font-size: 12px; }
   .pending-wrap { text-align: right; }
 
   .loading { text-align: center; padding: 40px; color: #888; font-size: 16px; }
-  .error { text-align: center; padding: 40px; color: #c00; }
+  .error   { text-align: center; padding: 40px; color: #c00; }
 
+  /* ===== ページネーション（最下部固定） ===== */
   .pagination {
+    flex-shrink: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 8px;
-    padding: 12px;
+    padding: 10px 12px;
     background: #fff;
     border-top: 1px solid #eef;
   }
@@ -184,8 +195,8 @@
     cursor: pointer;
     font-size: 13px;
   }
-  .pagination button:hover { background: #eef; }
-  .pagination button:disabled { opacity: .4; cursor: default; }
+  .pagination button:hover     { background: #eef; }
+  .pagination button:disabled  { opacity: .4; cursor: default; }
   .pagination .page-info { font-size: 13px; color: #666; }
 </style>
 </head>
@@ -198,7 +209,6 @@
   </div>
 </header>
 
-<!-- スクロール追従エリア（コントロール＋スタッツ） -->
 <div id="stickyTop">
   <div class="controls">
     <div class="filter-group">
@@ -235,7 +245,6 @@
       </select>
     </div>
   </div>
-
   <div class="stats" id="statsBar"></div>
 </div>
 
@@ -278,7 +287,7 @@ const CSV_URL = "data/gap_data.csv";
 let allRows = [];
 let filtered = [];
 let currentPage = 1;
-let totalPages = 1;
+let totalPages  = 1;
 let sortCol = "stop_date";
 let sortAsc = false;
 
@@ -286,8 +295,7 @@ async function loadCSV() {
   try {
     const resp = await fetch(CSV_URL + "?t=" + Date.now());
     if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const text = await resp.text();
-    return parseCSV(text);
+    return parseCSV(await resp.text());
   } catch (e) {
     document.getElementById("loading").innerHTML =
       `<div class="error">データの読み込みに失敗しました。<br>${e.message}</div>`;
@@ -301,7 +309,7 @@ function parseCSV(text) {
   const headers = lines[0].split(",").map(h => h.trim().replace(/^\uFEFF/, ""));
   return lines.slice(1).map(line => {
     const vals = line.split(",");
-    const obj = {};
+    const obj  = {};
     headers.forEach((h, i) => obj[h] = (vals[i] || "").trim());
     return obj;
   });
@@ -325,11 +333,11 @@ function applyFilters() {
   const code   = document.getElementById("filterCode").value.trim();
 
   filtered = allRows.filter(r => {
-    if (type   && r.stop_type !== type) return false;
-    if (market && r.market !== market) return false;
-    if (from   && r.stop_date < from) return false;
-    if (to     && r.stop_date > to) return false;
-    if (code   && r.code !== code) return false;
+    if (type   && r.stop_type !== type)   return false;
+    if (market && r.market    !== market) return false;
+    if (from   && r.stop_date <  from)   return false;
+    if (to     && r.stop_date >  to)     return false;
+    if (code   && r.code      !== code)  return false;
     return true;
   });
 
@@ -347,8 +355,8 @@ function sortRows() {
       av = parseFloat(av) || 0;
       bv = parseFloat(bv) || 0;
     }
-    if (av < bv) return sortAsc ? -1 : 1;
-    if (av > bv) return sortAsc ? 1 : -1;
+    if (av < bv) return sortAsc ? -1 :  1;
+    if (av > bv) return sortAsc ?  1 : -1;
     return 0;
   });
 }
@@ -361,49 +369,39 @@ function median(arr) {
 }
 
 function renderStats() {
-  // S高・S安の中央値ギャップ（全蓄積データから計算）
   const highGaps = allRows
-    .filter(r => r.stop_type === "stop_high" && r.gap_pct && r.gap_pct !== "")
+    .filter(r => r.stop_type === "stop_high" && r.gap_pct)
     .map(r => parseFloat(r.gap_pct));
   const lowGaps = allRows
-    .filter(r => r.stop_type === "stop_low" && r.gap_pct && r.gap_pct !== "")
+    .filter(r => r.stop_type === "stop_low" && r.gap_pct)
     .map(r => parseFloat(r.gap_pct));
 
   const medHigh = median(highGaps);
   const medLow  = median(lowGaps);
-  const fmtMed  = v => v === null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
-  const medHighCls = medHigh === null ? "" : medHigh > 0 ? "pos" : medHigh < 0 ? "neg" : "";
-  const medLowCls  = medLow  === null ? "" : medLow  > 0 ? "pos" : medLow  < 0 ? "neg" : "";
+  const fmt     = v => v === null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+  const cls     = v => v === null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "";
 
-  const valid = filtered.filter(r => r.gap_pct && r.gap_pct !== "");
-  const gaps  = valid.map(r => parseFloat(r.gap_pct));
-  const pos   = gaps.filter(g => g > 0).length;
-  const neg   = gaps.filter(g => g < 0).length;
-  const zer   = gaps.filter(g => g === 0).length;
+  const valid  = filtered.filter(r => r.gap_pct);
+  const gaps   = valid.map(r => parseFloat(r.gap_pct));
+  const pos    = gaps.filter(g => g > 0).length;
+  const neg    = gaps.filter(g => g < 0).length;
+  const zer    = gaps.filter(g => g === 0).length;
   const yorazu = filtered.filter(r => r.yorazu === "True").length;
 
   document.getElementById("statsBar").innerHTML = `
     <div class="stat-card"><div class="val">${filtered.length}</div><div class="lbl">銘柄数</div></div>
-    <div class="stat-card"><div class="val ${medHighCls}">${fmtMed(medHigh)}</div><div class="lbl">S高平均ギャップ</div></div>
-    <div class="stat-card"><div class="val ${medLowCls}">${fmtMed(medLow)}</div><div class="lbl">S安平均ギャップ</div></div>
+    <div class="stat-card"><div class="val ${cls(medHigh)}">${fmt(medHigh)}</div><div class="lbl">S高平均ギャップ</div></div>
+    <div class="stat-card"><div class="val ${cls(medLow)}">${fmt(medLow)}</div><div class="lbl">S安平均ギャップ</div></div>
     <div class="stat-card"><div class="val pos">${pos}</div><div class="lbl">ギャップアップ</div></div>
     <div class="stat-card"><div class="val neg">${neg}</div><div class="lbl">ギャップダウン</div></div>
     <div class="stat-card"><div class="val">${zer}</div><div class="lbl">ギャップなし</div></div>
     <div class="stat-card"><div class="val">${yorazu}</div><div class="lbl">寄らず</div></div>
   `;
-
-  updateStickyTop();
-}
-
-// theadのtopをstickyTopの高さに合わせる
-function updateStickyTop() {
-  const h = document.getElementById("stickyTop").offsetHeight;
-  document.querySelector("thead").style.top = h + "px";
 }
 
 function renderTable() {
   const ps = parseInt(document.getElementById("pageSize").value);
-  totalPages = ps >= 9999 ? 1 : Math.max(1, Math.ceil(filtered.length / ps));
+  totalPages  = ps >= 9999 ? 1 : Math.max(1, Math.ceil(filtered.length / ps));
   currentPage = Math.min(currentPage, totalPages);
 
   const start = ps >= 9999 ? 0 : (currentPage - 1) * ps;
@@ -412,18 +410,14 @@ function renderTable() {
 
   const tbody = document.getElementById("tableBody");
 
-  // 今日の日付（JST）
   const todayJST = (() => {
     const d = new Date();
     return new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 10);
   })();
 
-  // ラベルバッジ
-  const P = (cls, txt) => `<span class="lbl ${cls}">${txt}</span>`;
-  // ラベル＋数値（固定幅ラベル＋右揃え数字）
+  const P  = (cls, txt) => `<span class="lbl ${cls}">${txt}</span>`;
   const NW = (cls, lbl, val) =>
     `<div class="num-wrap">${P(cls, lbl)}<span class="nv">${val}</span></div>`;
-  // 取得中
   const PENDING = `<div class="pending-wrap"><span class="pending">📊 取得中...</span></div>`;
 
   let lastDate = null;
@@ -439,43 +433,33 @@ function renderTable() {
         : `● ${r.stop_date}（翌営業日: ${r.next_date}）`;
       sep = `<tr class="date-sep"><td colspan="15">${label}</td></tr>`;
     }
-    const rowClass = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
-
+    const rowClass  = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
     const isPending = r.next_date >= todayJST;
 
-    // 前日終値
     const prevClose = NW('lbl-prev', '前', parseFloat(r.prev_close).toLocaleString());
 
-    // ギャップ
-    const gp  = parseFloat(r.gap_pct);
+    const gp      = parseFloat(r.gap_pct);
     const gpClass = isNaN(gp) ? "" : gp > 0 ? "gap-pos" : gp < 0 ? "gap-neg" : "gap-zero";
-    const gpTxt = isNaN(gp) ? "—" : (gp > 0 ? "+" : "") + gp.toFixed(2) + "%";
-    const gyTxt = r.gap_yen && r.gap_yen !== "" ?
-      (parseFloat(r.gap_yen) > 0 ? "+" : "") + parseFloat(r.gap_yen).toFixed(1) : "—";
+    const gpTxt   = isNaN(gp) ? "—" : (gp > 0 ? "+" : "") + gp.toFixed(2) + "%";
+    const gyTxt   = r.gap_yen
+      ? (parseFloat(r.gap_yen) > 0 ? "+" : "") + parseFloat(r.gap_yen).toFixed(1) : "—";
 
-    // 翌日始値
-    const openVal = r.next_open && r.next_open !== "" ?
-      parseFloat(r.next_open).toLocaleString() : "—";
+    const openVal = r.next_open ? parseFloat(r.next_open).toLocaleString() : "—";
     const openTxt = isPending ? PENDING : NW('lbl-yori', '寄', openVal);
 
-    // 値幅
-    const rv = parseFloat(r.range_pct);
+    const rv      = parseFloat(r.range_pct);
     const rvClass = isNaN(rv) ? "" : rv > 0 ? "gap-pos" : rv < 0 ? "gap-neg" : "gap-zero";
-    const rvTxt = isNaN(rv) ? "—" : (rv > 0 ? "+" : "") + rv.toFixed(2) + "%";
-    const ryTxt = r.range_yen && r.range_yen !== "" ?
-      (parseFloat(r.range_yen) > 0 ? "+" : "") + parseFloat(r.range_yen).toFixed(1) : "—";
+    const rvTxt   = isNaN(rv) ? "—" : (rv > 0 ? "+" : "") + rv.toFixed(2) + "%";
+    const ryTxt   = r.range_yen
+      ? (parseFloat(r.range_yen) > 0 ? "+" : "") + parseFloat(r.range_yen).toFixed(1) : "—";
 
-    // 当日終値
-    const closeVal = r.next_close && r.next_close !== "" ?
-      parseFloat(r.next_close).toLocaleString() : "—";
+    const closeVal = r.next_close ? parseFloat(r.next_close).toLocaleString() : "—";
     const closeTxt = isPending ? PENDING : NW('lbl-close', '終', closeVal);
 
-    // 出来高
-    const volVal = r.volume && r.volume !== "" ?
-      parseInt(r.volume).toLocaleString() : "—";
+    const volVal = r.volume ? parseInt(r.volume).toLocaleString() : "—";
     const volTxt = isPending ? PENDING : NW('lbl-vol', '出', volVal);
 
-    const badge = r.stop_type === "stop_high"
+    const badge  = r.stop_type === "stop_high"
       ? '<span class="badge badge-high">高</span>'
       : '<span class="badge badge-low">安</span>';
     const yorazu = r.yorazu === "True"
@@ -501,9 +485,8 @@ function renderTable() {
   }).join("");
 
   document.getElementById("mainTable").style.display = "";
-  document.getElementById("loading").style.display = "none";
+  document.getElementById("loading").style.display   = "none";
 
-  // ページネーション
   const pag = document.getElementById("pagination");
   if (totalPages <= 1 && filtered.length <= ps) {
     pag.style.display = "none";
@@ -529,15 +512,13 @@ document.querySelectorAll("thead th[data-col]").forEach(th => {
     const col = th.dataset.col;
     if (sortCol === col) { sortAsc = !sortAsc; }
     else { sortCol = col; sortAsc = false; }
-    document.querySelectorAll("thead th").forEach(t => t.classList.remove("sorted-asc","sorted-desc"));
+    document.querySelectorAll("thead th").forEach(t =>
+      t.classList.remove("sorted-asc", "sorted-desc"));
     th.classList.add(sortAsc ? "sorted-asc" : "sorted-desc");
     sortRows();
     renderTable();
   });
 });
-
-// リサイズ時にもstickyTopを再計算
-window.addEventListener("resize", updateStickyTop);
 
 // フィルター変更
 ["filterType","filterMarket","filterDateFrom","filterDateTo","filterCode","pageSize"]
