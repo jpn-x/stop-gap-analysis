@@ -625,7 +625,7 @@ function renderTable() {
 
     // Y/X ソーシャルリンク
     const yUrl = `https://finance.yahoo.co.jp/quote/${r.code}.T/forum`;
-    const xUrl = `https://x.com/search?q=${encodeURIComponent(r.code + " " + r.name + " 株")}`;
+    const xUrl = `https://x.com/search?q=${encodeURIComponent(r.code + " 株")}`;
     const snsLinks = `<span class="sns-wrap"><a href="${yUrl}" target="_blank" class="btn-y">Y</a><a href="${xUrl}" target="_blank" class="btn-x">X</a></span>`;
 
     return sep + `<tr class="${rowClass}">
