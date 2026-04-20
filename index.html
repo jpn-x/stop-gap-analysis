@@ -28,8 +28,8 @@
     padding: 10px 16px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    justify-content: flex-start;
+    gap: 0;
   }
   .header-title h1  { font-size: 18px; font-weight: 700; }
   .header-title .sub { font-size: 12px; color: #aab; margin-top: 2px; }
@@ -39,7 +39,8 @@
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
-    justify-content: flex-end;
+    justify-content: flex-start;
+    margin-left: 2em; /* タイトルから全角2文字分 */
   }
   .month-tab {
     background: rgba(255,255,255,0.1);
@@ -117,6 +118,12 @@
     border-color: #64b5f6;
   }
   .stat-btn.btn-on-low .val { color: #1565c0; }
+  /* ギャップフィルターボタンのアクティブ状態 */
+  .stat-btn.btn-on {
+    background: #e8f0fe;
+    border-color: #5584dc;
+    box-shadow: inset 0 0 0 1px #5584dc;
+  }
 
   /* ===== テーブルエリア ===== */
   .table-wrap {
@@ -196,11 +203,11 @@
   .lbl-close { color: #fff; background: #6d4c41; }
   .lbl-vol   { color: #fff; background: #6a1b9a; }
 
-  .num-wrap { display: flex; align-items: center; gap: 5px; }
+  .num-wrap { display: flex; align-items: center; gap: 1em; }
   .num-wrap .lbl { width: 24px; text-align: center; }
   .num-wrap .nv  { flex: 1; text-align: right; }
 
-  .pending      { color: #aaa; font-style: italic; font-size: 12px; }
+  .pending      { color: #aaa; font-style: italic; font-size: 11px; white-space: nowrap; }
   .pending-wrap { text-align: right; }
 
   .loading { text-align: center; padding: 40px; color: #888; font-size: 16px; }
@@ -322,6 +329,7 @@ let totalPages  = 1;
 let sortCol     = "stop_date";
 let sortAsc     = false;
 let currentMonth = ""; // "2026-04" など。空=全て
+let gapFilter    = ""; // "" | "up" | "down" | "zero" | "yorazu"
 
 /* ===== CSV読み込み ===== */
 async function loadCSV() {
@@ -421,6 +429,14 @@ function applyFilters() {
     if (from   && r.stop_date <  from)   return false;
     if (to     && r.stop_date >  to)     return false;
     if (code   && r.code      !== code)  return false;
+    // ギャップフィルター
+    if (gapFilter) {
+      const gp = parseFloat(r.gap_pct);
+      if (gapFilter === "up"     && !(gp > 0))           return false;
+      if (gapFilter === "down"   && !(gp < 0))           return false;
+      if (gapFilter === "zero"   && gp !== 0)            return false;
+      if (gapFilter === "yorazu" && r.yorazu !== "True") return false;
+    }
     return true;
   });
 
@@ -476,8 +492,16 @@ function renderStats() {
   const highOn = currentType === "stop_high";
   const lowOn  = currentType === "stop_low";
 
+  const gfNone   = gapFilter === "";
+  const gfUp     = gapFilter === "up";
+  const gfDown   = gapFilter === "down";
+  const gfZero   = gapFilter === "zero";
+  const gfYorazu = gapFilter === "yorazu";
+
   document.getElementById("statsBar").innerHTML = `
-    <div class="stat-card"><div class="val">${filtered.length}</div><div class="lbl">銘柄数</div></div>
+    <div class="stat-card stat-btn ${gfNone ? "btn-on" : ""}" onclick="setGapFilter('')">
+      <div class="val">${filtered.length}</div><div class="lbl">銘柄数</div>
+    </div>
     <div class="stat-card"><div class="val ${cls(medHigh)}">${fmt(medHigh)}</div><div class="lbl">S高平均ギャップ</div></div>
     <div class="stat-card stat-btn ${highOn ? "btn-on-high" : ""}" onclick="setTypeFilter('stop_high')">
       <div class="val">S高</div><div class="lbl">のみ表示</div>
@@ -486,10 +510,18 @@ function renderStats() {
     <div class="stat-card stat-btn ${lowOn ? "btn-on-low" : ""}" onclick="setTypeFilter('stop_low')">
       <div class="val">S安</div><div class="lbl">のみ表示</div>
     </div>
-    <div class="stat-card"><div class="val pos">${pos}</div><div class="lbl">ギャップアップ</div></div>
-    <div class="stat-card"><div class="val neg">${neg}</div><div class="lbl">ギャップダウン</div></div>
-    <div class="stat-card"><div class="val">${zer}</div><div class="lbl">ギャップなし</div></div>
-    <div class="stat-card"><div class="val">${yorazu}</div><div class="lbl">寄らず</div></div>
+    <div class="stat-card stat-btn ${gfUp ? "btn-on" : ""}" onclick="setGapFilter('up')">
+      <div class="val pos">${pos}</div><div class="lbl">ギャップアップ</div>
+    </div>
+    <div class="stat-card stat-btn ${gfDown ? "btn-on" : ""}" onclick="setGapFilter('down')">
+      <div class="val neg">${neg}</div><div class="lbl">ギャップダウン</div>
+    </div>
+    <div class="stat-card stat-btn ${gfZero ? "btn-on" : ""}" onclick="setGapFilter('zero')">
+      <div class="val">${zer}</div><div class="lbl">ギャップなし</div>
+    </div>
+    <div class="stat-card stat-btn ${gfYorazu ? "btn-on" : ""}" onclick="setGapFilter('yorazu')">
+      <div class="val">${yorazu}</div><div class="lbl">寄らず</div>
+    </div>
   `;
 }
 
@@ -513,7 +545,7 @@ function renderTable() {
   const P  = (cls, txt) => `<span class="lbl ${cls}">${txt}</span>`;
   const NW = (cls, lbl, val) =>
     `<div class="num-wrap">${P(cls, lbl)}<span class="nv">${val}</span></div>`;
-  const PENDING = `<div class="pending-wrap"><span class="pending">📊 取得中...</span></div>`;
+  const PENDING = `<div class="pending-wrap"><span class="pending">翌日取得待ち</span></div>`;
 
   let lastDate = null;
   let groupIdx = 0;
@@ -605,6 +637,12 @@ function goPage(p) {
 function setTypeFilter(type) {
   const sel = document.getElementById("filterType");
   sel.value = sel.value === type ? "" : type;
+  applyFilters();
+}
+
+/* ギャップ種別フィルター（銘柄数=リセット、再クリックでリセット） */
+function setGapFilter(type) {
+  gapFilter = gapFilter === type ? "" : type;
   applyFilters();
 }
 
