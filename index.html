@@ -197,6 +197,9 @@
         <th data-col="next_open">翌日始値</th>
         <th data-col="gap_yen">ギャップ(円)</th>
         <th data-col="gap_pct">ギャップ(%)</th>
+        <th data-col="next_close">当日終値</th>
+        <th data-col="range_yen">値幅(円)</th>
+        <th data-col="range_pct">値幅(%)</th>
         <th data-col="volume">出来高</th>
         <th data-col="yorazu">寄らず</th>
       </tr>
@@ -342,6 +345,15 @@ function renderTable() {
     const vol = r.volume && r.volume !== "" ?
       parseInt(r.volume).toLocaleString() : "—";
 
+    const closeTxt = r.next_close && r.next_close !== "" ?
+      parseFloat(r.next_close).toLocaleString() : "—";
+
+    const rv = parseFloat(r.range_pct);
+    const rvClass = isNaN(rv) ? "" : rv > 0 ? "gap-pos" : rv < 0 ? "gap-neg" : "gap-zero";
+    const rvTxt = isNaN(rv) ? "—" : (rv > 0 ? "+" : "") + rv.toFixed(2) + "%";
+    const ryTxt = r.range_yen && r.range_yen !== "" ?
+      (parseFloat(r.range_yen) > 0 ? "+" : "") + parseFloat(r.range_yen).toFixed(1) : "—";
+
     return `<tr>
       <td>${r.stop_date}</td>
       <td>${r.next_date}</td>
@@ -353,6 +365,9 @@ function renderTable() {
       <td style="text-align:right">${openTxt}</td>
       <td style="text-align:right" class="${gpClass}">${gyTxt}</td>
       <td style="text-align:right" class="${gpClass}">${gpTxt}</td>
+      <td style="text-align:right">${closeTxt}</td>
+      <td style="text-align:right" class="${rvClass}">${ryTxt}</td>
+      <td style="text-align:right" class="${rvClass}">${rvTxt}</td>
       <td style="text-align:right">${vol}</td>
       <td>${yorazu}</td>
     </tr>`;

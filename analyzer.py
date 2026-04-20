@@ -23,18 +23,21 @@ DATA_DIR = Path("data")
 GAP_CSV = DATA_DIR / "gap_data.csv"
 
 CSV_COLUMNS = [
-    "stop_date",   # ストップ高安日
-    "next_date",   # 翌営業日
-    "code",        # 銘柄コード
-    "name",        # 銘柄名
-    "market",      # 市場
-    "stop_type",   # stop_high / stop_low
-    "prev_close",  # ストップ日終値
-    "next_open",   # 翌営業日始値（寄らずの場合は None）
-    "gap_yen",     # ギャップ（円）
-    "gap_pct",     # ギャップ（%）
-    "volume",      # 翌営業日出来高
-    "yorazu",      # 寄らずフラグ（True=寄らず）
+    "stop_date",    # ストップ高安日
+    "next_date",    # 翌営業日
+    "code",         # 銘柄コード
+    "name",         # 銘柄名
+    "market",       # 市場
+    "stop_type",    # stop_high / stop_low
+    "prev_close",   # ストップ日終値（分析基準）
+    "next_open",    # 翌営業日始値
+    "gap_yen",      # 始値ギャップ（円）
+    "gap_pct",      # 始値ギャップ（%）
+    "next_close",   # 翌営業日終値（当日終値）
+    "range_yen",    # 前日終値→当日終値 値幅（円）
+    "range_pct",    # 前日終値→当日終値 値幅（%）
+    "volume",       # 翌営業日出来高
+    "yorazu",       # 寄らずフラグ（True=寄らず）
 ]
 
 
@@ -88,16 +91,17 @@ def fetch_price_data(code: str, target_date: date) -> dict | None:
         open_price = float(row["Open"])
         volume = int(row["Volume"])
 
-        # 寄らず判定: 出来高ゼロ、または始値がゼロ
+        close_price = float(row["Close"])
         yorazu = volume == 0 or open_price == 0
 
         return {
-            "open": round(open_price, 1) if open_price else None,
+            "open":  round(open_price,  1) if open_price  else None,
+            "close": round(close_price, 1) if close_price else None,
             "volume": volume,
             "yorazu": yorazu,
         }
     except Exception as e:
-        print(f"    ⚠ {code} 取得失敗: {e}")
+        print(f"    ! {code} 取得失敗: {e}")
         return None
 
 
@@ -194,31 +198,40 @@ def process_day(
             time.sleep(0.4)  # レート制限対策
 
             if price_data and price_data["open"]:
-                next_open = price_data["open"]
-                gap_yen = round(next_open - prev_close, 1)
-                gap_pct = round((next_open - prev_close) / prev_close * 100, 2)
-                volume = price_data["volume"]
-                yorazu = price_data["yorazu"]
+                next_open  = price_data["open"]
+                next_close = price_data["close"]
+                gap_yen  = round(next_open  - prev_close, 1)
+                gap_pct  = round((next_open  - prev_close) / prev_close * 100, 2)
+                range_yen = round(next_close - prev_close, 1) if next_close else None
+                range_pct = round((next_close - prev_close) / prev_close * 100, 2) if next_close else None
+                volume  = price_data["volume"]
+                yorazu  = price_data["yorazu"]
             else:
-                next_open = None
-                gap_yen = None
-                gap_pct = None
-                volume = price_data["volume"] if price_data else None
-                yorazu = True
+                next_open  = None
+                next_close = None
+                gap_yen    = None
+                gap_pct    = None
+                range_yen  = None
+                range_pct  = None
+                volume  = price_data["volume"] if price_data else None
+                yorazu  = True
 
             results.append({
-                "stop_date": stop_date_str,
-                "next_date": nbd.isoformat(),
-                "code": code,
-                "name": stock["name"],
-                "market": stock["market"],
-                "stop_type": stop_type,
+                "stop_date":  stop_date_str,
+                "next_date":  nbd.isoformat(),
+                "code":       code,
+                "name":       stock["name"],
+                "market":     stock["market"],
+                "stop_type":  stop_type,
                 "prev_close": prev_close,
-                "next_open": next_open,
-                "gap_yen": gap_yen,
-                "gap_pct": gap_pct,
-                "volume": volume,
-                "yorazu": yorazu,
+                "next_open":  next_open,
+                "gap_yen":    gap_yen,
+                "gap_pct":    gap_pct,
+                "next_close": next_close,
+                "range_yen":  range_yen,
+                "range_pct":  range_pct,
+                "volume":     volume,
+                "yorazu":     yorazu,
             })
 
     return results
