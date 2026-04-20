@@ -203,10 +203,10 @@
   .lbl-close { color: #fff; background: #6d4c41; }
   .lbl-vol   { color: #fff; background: #6a1b9a; }
 
-  .num-wrap      { display: flex; align-items: center; }
+  .num-wrap      { display: flex; align-items: center; justify-content: flex-end; }
+  .num-wrap .nv  { text-align: right; }
+  .num-wrap .nwsp{ flex-shrink: 0; width: 0.4em; } /* 半角スペース相当 */
   .num-wrap .lbl { flex-shrink: 0; width: 26px; text-align: center; }
-  .num-wrap .nwsp{ flex-shrink: 0; width: 1em; } /* 全角1文字分の固定スペーサー */
-  .num-wrap .nv  { flex: 1; text-align: right; }
 
   .pending      { color: #aaa; font-style: italic; font-size: 11px; white-space: nowrap; }
   .pending-wrap { text-align: right; }
@@ -545,7 +545,7 @@ function renderTable() {
 
   const P  = (cls, txt) => `<span class="lbl ${cls}">${txt}</span>`;
   const NW = (cls, lbl, val) =>
-    `<div class="num-wrap">${P(cls, lbl)}<span class="nwsp"></span><span class="nv">${val}</span></div>`;
+    `<div class="num-wrap"><span class="nv">${val}</span><span class="nwsp"></span>${P(cls, lbl)}</div>`;
   const PENDING = `<div class="pending-wrap"><span class="pending">翌日取得待ち</span></div>`;
 
   let lastDate = null;
