@@ -4,12 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ストップ高安 寄り付きギャップ分析</title>
+<link rel="icon" href="favicon.png" type="image/png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     background: #f0f2f5;
     color: #222;
   }
@@ -22,8 +23,8 @@
     align-items: center;
     gap: 16px;
   }
-  header h1 { font-size: 18px; font-weight: 700; }
-  header .sub { font-size: 12px; color: #aab; margin-top: 2px; }
+  header h1 { font-size: 19px; font-weight: 700; }
+  header .sub { font-size: 13px; color: #aab; margin-top: 2px; }
 
   .controls {
     display: flex;
@@ -34,12 +35,12 @@
     border-bottom: 1px solid #dde;
     align-items: center;
   }
-  .controls label { font-size: 12px; color: #555; margin-right: 4px; }
+  .controls label { font-size: 13px; color: #555; margin-right: 4px; }
   select, input[type="text"], input[type="date"] {
     border: 1px solid #ccc;
     border-radius: 4px;
     padding: 4px 8px;
-    font-size: 12px;
+    font-size: 13px;
   }
   .filter-group { display: flex; align-items: center; gap: 4px; }
 
@@ -50,6 +51,10 @@
     background: #fff;
     border-bottom: 1px solid #dde;
     flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    box-shadow: 0 2px 6px rgba(0,0,0,.12);
   }
   .stat-card {
     background: #f8f9fc;
@@ -59,8 +64,8 @@
     text-align: center;
     min-width: 100px;
   }
-  .stat-card .val { font-size: 20px; font-weight: 700; }
-  .stat-card .lbl { font-size: 11px; color: #777; }
+  .stat-card .val { font-size: 21px; font-weight: 700; }
+  .stat-card .lbl { font-size: 12px; color: #777; }
   .pos { color: #d32f2f; }
   .neg { color: #1565c0; }
 
@@ -77,18 +82,18 @@
     overflow: hidden;
     box-shadow: 0 1px 4px rgba(0,0,0,.08);
   }
-  thead { background: #1a1a2e; color: #fff; }
+  thead { background: #1a1a2e; color: #fff; position: sticky; top: 0; z-index: 100; }
   thead th {
     padding: 9px 10px;
     text-align: left;
-    font-size: 12px;
+    font-size: 13px;
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
   }
   thead th:hover { background: #2a2a4e; }
-  thead th.sorted-asc::after  { content: ' ▲'; font-size: 10px; }
-  thead th.sorted-desc::after { content: ' ▼'; font-size: 10px; }
+  thead th.sorted-asc::after  { content: ' ▲'; font-size: 11px; }
+  thead th.sorted-desc::after { content: ' ▼'; font-size: 11px; }
 
   tbody tr.row-odd  { background: #ffffff; }
   tbody tr.row-even { background: #e4eaf8; }
@@ -100,7 +105,7 @@
     background: #2e3a6e;
     color: #e8ecff;
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13px;
     padding: 5px 12px;
     letter-spacing: 0.05em;
     border-top: 3px solid #1a1a2e;
@@ -111,7 +116,7 @@
     display: inline-block;
     padding: 2px 7px;
     border-radius: 10px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
   }
   .badge-high { background: #fde8e8; color: #c62828; }
@@ -123,7 +128,7 @@
   .gap-zero { color: #555; }
 
   /* 列ラベル */
-  .lbl { font-size: 10px; font-weight: 700; margin-right: 3px;
+  .lbl { font-size: 11px; font-weight: 700; margin-right: 3px;
          padding: 1px 3px; border-radius: 3px; vertical-align: middle; }
   .lbl-prev  { color: #fff; background: #333; }
   .lbl-yori  { color: #fff; background: #2e7d32; }
@@ -131,9 +136,9 @@
   .lbl-vol   { color: #fff; background: #6a1b9a; }
 
   /* 取得中セル */
-  .pending { color: #aaa; font-style: italic; font-size: 11px; }
+  .pending { color: #aaa; font-style: italic; font-size: 12px; }
 
-  .loading { text-align: center; padding: 40px; color: #888; font-size: 15px; }
+  .loading { text-align: center; padding: 40px; color: #888; font-size: 16px; }
   .error { text-align: center; padding: 40px; color: #c00; }
 
   .pagination {
@@ -151,11 +156,11 @@
     border-radius: 4px;
     padding: 4px 12px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 13px;
   }
   .pagination button:hover { background: #eef; }
   .pagination button:disabled { opacity: .4; cursor: default; }
-  .pagination .page-info { font-size: 12px; color: #666; }
+  .pagination .page-info { font-size: 13px; color: #666; }
 </style>
 </head>
 <body>
@@ -196,8 +201,8 @@
     <label>表示件数</label>
     <select id="pageSize">
       <option value="50">50</option>
-      <option value="100" selected>100</option>
-      <option value="200">200</option>
+      <option value="100">100</option>
+      <option value="200" selected>200</option>
       <option value="9999">全件</option>
     </select>
   </div>
@@ -320,6 +325,13 @@ function sortRows() {
   });
 }
 
+function median(arr) {
+  if (!arr.length) return null;
+  const s = [...arr].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
 function renderStats() {
   const valid = filtered.filter(r => r.gap_pct && r.gap_pct !== "");
   const gaps = valid.map(r => parseFloat(r.gap_pct));
@@ -330,6 +342,20 @@ function renderStats() {
   const zer  = gaps.filter(g => g === 0).length;
   const yorazu = filtered.filter(r => r.yorazu === "True").length;
 
+  // S高・S安の中央値ギャップ（全蓄積データから計算）
+  const highGaps = allRows
+    .filter(r => r.stop_type === "stop_high" && r.gap_pct && r.gap_pct !== "")
+    .map(r => parseFloat(r.gap_pct));
+  const lowGaps = allRows
+    .filter(r => r.stop_type === "stop_low" && r.gap_pct && r.gap_pct !== "")
+    .map(r => parseFloat(r.gap_pct));
+
+  const medHigh = median(highGaps);
+  const medLow  = median(lowGaps);
+  const fmtMed = (v) => v === null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+  const medHighCls = medHigh === null ? "" : medHigh > 0 ? "pos" : medHigh < 0 ? "neg" : "";
+  const medLowCls  = medLow  === null ? "" : medLow  > 0 ? "pos" : medLow  < 0 ? "neg" : "";
+
   document.getElementById("statsBar").innerHTML = `
     <div class="stat-card"><div class="val">${filtered.length}</div><div class="lbl">銘柄数</div></div>
     <div class="stat-card"><div class="val">${avg}%</div><div class="lbl">平均ギャップ</div></div>
@@ -337,6 +363,8 @@ function renderStats() {
     <div class="stat-card"><div class="val neg">${neg}</div><div class="lbl">ギャップダウン</div></div>
     <div class="stat-card"><div class="val">${zer}</div><div class="lbl">ギャップなし</div></div>
     <div class="stat-card"><div class="val">${yorazu}</div><div class="lbl">寄らず</div></div>
+    <div class="stat-card"><div class="val ${medHighCls}">${fmtMed(medHigh)}</div><div class="lbl">S高平均ギャップ</div></div>
+    <div class="stat-card"><div class="val ${medLowCls}">${fmtMed(medLow)}</div><div class="lbl">S安平均ギャップ</div></div>
   `;
 }
 
