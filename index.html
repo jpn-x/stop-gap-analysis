@@ -8,10 +8,7 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ===== 全体レイアウト: 縦flex・画面高さ固定 ===== */
-  html, body {
-    height: 100%;
-  }
+  html, body { height: 100%; }
   body {
     font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
     font-size: 14px;
@@ -20,7 +17,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
-    overflow: hidden; /* bodyはスクロールしない */
+    overflow: hidden;
   }
 
   /* ===== ヘッダー ===== */
@@ -28,26 +25,46 @@
     flex-shrink: 0;
     background: #1a1a2e;
     color: #fff;
-    padding: 12px 20px;
+    padding: 10px 16px;
     display: flex;
     align-items: center;
-    gap: 16px;
+    justify-content: space-between;
+    gap: 12px;
   }
-  header h1  { font-size: 19px; font-weight: 700; }
-  header .sub { font-size: 13px; color: #aab; margin-top: 2px; }
+  .header-title h1  { font-size: 18px; font-weight: 700; }
+  .header-title .sub { font-size: 12px; color: #aab; margin-top: 2px; }
 
-  /* ===== コントロール＋スタッツ（常時上固定） ===== */
-  #stickyTop {
-    flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,.15);
-    z-index: 10;
+  /* ===== 月タブ ===== */
+  .month-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    justify-content: flex-end;
   }
+  .month-tab {
+    background: rgba(255,255,255,0.1);
+    color: #ccd;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 14px;
+    padding: 4px 11px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .month-tab:hover   { background: rgba(255,255,255,0.22); color: #fff; }
+  .month-tab.active  { background: #fff; color: #1a1a2e; font-weight: 700; border-color: #fff; }
+  .month-tab.no-data { opacity: 0.35; cursor: default; }
+  .month-tab.no-data:hover { background: rgba(255,255,255,0.1); color: #ccd; }
+
+  /* ===== コントロール＋スタッツ ===== */
+  #stickyTop { flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,.15); z-index: 10; }
 
   .controls {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    padding: 10px 16px;
+    padding: 9px 16px;
     background: #fff;
     border-bottom: 1px solid #dde;
     align-items: center;
@@ -63,7 +80,7 @@
 
   .stats {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     padding: 8px 16px;
     background: #fff;
     border-bottom: 1px solid #dde;
@@ -73,40 +90,36 @@
     background: #f8f9fc;
     border: 1px solid #e0e4ef;
     border-radius: 6px;
-    padding: 6px 14px;
+    padding: 5px 14px;
     text-align: center;
-    min-width: 100px;
+    min-width: 96px;
   }
-  .stat-card .val { font-size: 21px; font-weight: 700; }
-  .stat-card .lbl { font-size: 12px; color: #777; }
+  .stat-card .val { font-size: 20px; font-weight: 700; }
+  .stat-card .lbl { font-size: 11px; color: #777; }
   .pos { color: #d32f2f; }
   .neg { color: #1565c0; }
 
-  /* ===== テーブルエリア（残り全高・スクロール） ===== */
+  /* ===== テーブルエリア ===== */
   .table-wrap {
     flex: 1;
-    overflow: auto;   /* 縦横スクロール */
-    min-height: 0;    /* flexでの重要なhack */
-    padding: 10px 16px 0;
+    overflow: auto;
+    min-height: 0;
+    padding: 0; /* 上の隙間ゼロ */
   }
 
   table {
     border-collapse: collapse;
     width: 100%;
     background: #fff;
-    box-shadow: 0 1px 4px rgba(0,0,0,.08);
-    /* overflow:hidden は削除（stickyを妨害するため） */
   }
 
-  /* theadをtable-wrap内でsticky */
-  thead {
-    background: #1a1a2e;
-    color: #fff;
+  /* th 個別sticky（border-collapse:collapse との競合を回避） */
+  thead th {
     position: sticky;
     top: 0;
     z-index: 5;
-  }
-  thead th {
+    background: #1a1a2e;
+    color: #fff;
     padding: 9px 10px;
     text-align: left;
     font-size: 13px;
@@ -164,26 +177,24 @@
   .lbl-close { color: #fff; background: #6d4c41; }
   .lbl-vol   { color: #fff; background: #6a1b9a; }
 
-  /* ラベル＋数字を横flex（ラベル固定幅・数字右揃え） */
   .num-wrap { display: flex; align-items: center; gap: 5px; }
   .num-wrap .lbl { width: 24px; text-align: center; }
   .num-wrap .nv  { flex: 1; text-align: right; }
 
-  /* 取得中 */
   .pending      { color: #aaa; font-style: italic; font-size: 12px; }
   .pending-wrap { text-align: right; }
 
   .loading { text-align: center; padding: 40px; color: #888; font-size: 16px; }
   .error   { text-align: center; padding: 40px; color: #c00; }
 
-  /* ===== ページネーション（最下部固定） ===== */
+  /* ===== ページネーション ===== */
   .pagination {
     flex-shrink: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     background: #fff;
     border-top: 1px solid #eef;
   }
@@ -195,18 +206,19 @@
     cursor: pointer;
     font-size: 13px;
   }
-  .pagination button:hover     { background: #eef; }
-  .pagination button:disabled  { opacity: .4; cursor: default; }
+  .pagination button:hover    { background: #eef; }
+  .pagination button:disabled { opacity: .4; cursor: default; }
   .pagination .page-info { font-size: 13px; color: #666; }
 </style>
 </head>
 <body>
 
 <header>
-  <div>
+  <div class="header-title">
     <h1>ストップ高安 寄り付きギャップ分析</h1>
     <div class="sub">前営業日ストップ高安銘柄 → 翌営業日始値のギャップ一覧</div>
   </div>
+  <div class="month-tabs" id="monthTabs"></div>
 </header>
 
 <div id="stickyTop">
@@ -284,13 +296,15 @@
 
 <script>
 const CSV_URL = "data/gap_data.csv";
-let allRows = [];
-let filtered = [];
+let allRows     = [];
+let filtered    = [];
 let currentPage = 1;
 let totalPages  = 1;
-let sortCol = "stop_date";
-let sortAsc = false;
+let sortCol     = "stop_date";
+let sortAsc     = false;
+let currentMonth = ""; // "2026-04" など。空=全て
 
+/* ===== CSV読み込み ===== */
 async function loadCSV() {
   try {
     const resp = await fetch(CSV_URL + "?t=" + Date.now());
@@ -302,7 +316,6 @@ async function loadCSV() {
     return [];
   }
 }
-
 function parseCSV(text) {
   const lines = text.trim().split("\n");
   if (lines.length < 2) return [];
@@ -315,6 +328,56 @@ function parseCSV(text) {
   });
 }
 
+/* ===== 月タブ ===== */
+function buildMonthRange() {
+  // データの最古月〜今年12月
+  if (!allRows.length) return [];
+  const firstStr = allRows.map(r => r.stop_date).sort()[0].slice(0, 7); // "2026-04"
+  const nowJST   = new Date(Date.now() + 9 * 3600000);
+  const endStr   = `${nowJST.getFullYear()}-12`;
+
+  const range = [];
+  let cur = firstStr;
+  while (cur <= endStr) {
+    range.push(cur);
+    const [y, m] = cur.split("-").map(Number);
+    cur = m === 12
+      ? `${y + 1}-01`
+      : `${y}-${String(m + 1).padStart(2, "0")}`;
+  }
+  return range;
+}
+
+function renderMonthTabs() {
+  const dataMonths = new Set(allRows.map(r => r.stop_date.slice(0, 7)));
+  const range      = buildMonthRange();
+  const container  = document.getElementById("monthTabs");
+
+  const makeLabel = ym => {
+    const [y, m] = ym.split("-");
+    return `${y}/${parseInt(m)}月`;
+  };
+
+  const allBtn = `<button class="month-tab active" data-month="">全期間</button>`;
+  const monthBtns = range.map(ym => {
+    const hasData = dataMonths.has(ym);
+    return `<button class="month-tab${hasData ? "" : " no-data"}" data-month="${ym}">${makeLabel(ym)}</button>`;
+  }).join("");
+
+  container.innerHTML = allBtn + monthBtns;
+
+  container.querySelectorAll(".month-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (btn.classList.contains("no-data")) return;
+      currentMonth = btn.dataset.month;
+      container.querySelectorAll(".month-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      applyFilters();
+    });
+  });
+}
+
+/* ===== フィルター ===== */
 function populateMarkets(rows) {
   const markets = [...new Set(rows.map(r => r.market).filter(Boolean))].sort();
   const sel = document.getElementById("filterMarket");
@@ -333,6 +396,7 @@ function applyFilters() {
   const code   = document.getElementById("filterCode").value.trim();
 
   filtered = allRows.filter(r => {
+    if (currentMonth && !r.stop_date.startsWith(currentMonth)) return false;
     if (type   && r.stop_type !== type)   return false;
     if (market && r.market    !== market) return false;
     if (from   && r.stop_date <  from)   return false;
@@ -347,6 +411,7 @@ function applyFilters() {
   renderTable();
 }
 
+/* ===== ソート ===== */
 function sortRows() {
   filtered.sort((a, b) => {
     let av = a[sortCol] ?? "";
@@ -361,6 +426,7 @@ function sortRows() {
   });
 }
 
+/* ===== スタッツ ===== */
 function median(arr) {
   if (!arr.length) return null;
   const s = [...arr].sort((a, b) => a - b);
@@ -378,11 +444,10 @@ function renderStats() {
 
   const medHigh = median(highGaps);
   const medLow  = median(lowGaps);
-  const fmt     = v => v === null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
-  const cls     = v => v === null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "";
+  const fmt = v => v === null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+  const cls = v => v === null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "";
 
-  const valid  = filtered.filter(r => r.gap_pct);
-  const gaps   = valid.map(r => parseFloat(r.gap_pct));
+  const gaps   = filtered.filter(r => r.gap_pct).map(r => parseFloat(r.gap_pct));
   const pos    = gaps.filter(g => g > 0).length;
   const neg    = gaps.filter(g => g < 0).length;
   const zer    = gaps.filter(g => g === 0).length;
@@ -399,6 +464,7 @@ function renderStats() {
   `;
 }
 
+/* ===== テーブル描画 ===== */
 function renderTable() {
   const ps = parseInt(document.getElementById("pageSize").value);
   totalPages  = ps >= 9999 ? 1 : Math.max(1, Math.ceil(filtered.length / ps));
@@ -428,7 +494,7 @@ function renderTable() {
       lastDate = r.stop_date;
       groupIdx = 0;
       const isLatest = r.next_date >= todayJST;
-      const label = isLatest
+      const label    = isLatest
         ? `● ${r.stop_date}（翌営業日: ${r.next_date}）　⚠ 当日データ取得中`
         : `● ${r.stop_date}（翌営業日: ${r.next_date}）`;
       sep = `<tr class="date-sep"><td colspan="15">${label}</td></tr>`;
@@ -436,7 +502,7 @@ function renderTable() {
     const rowClass  = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
     const isPending = r.next_date >= todayJST;
 
-    const prevClose = NW('lbl-prev', '前', parseFloat(r.prev_close).toLocaleString());
+    const prevClose = NW("lbl-prev", "前", parseFloat(r.prev_close).toLocaleString());
 
     const gp      = parseFloat(r.gap_pct);
     const gpClass = isNaN(gp) ? "" : gp > 0 ? "gap-pos" : gp < 0 ? "gap-neg" : "gap-zero";
@@ -445,7 +511,7 @@ function renderTable() {
       ? (parseFloat(r.gap_yen) > 0 ? "+" : "") + parseFloat(r.gap_yen).toFixed(1) : "—";
 
     const openVal = r.next_open ? parseFloat(r.next_open).toLocaleString() : "—";
-    const openTxt = isPending ? PENDING : NW('lbl-yori', '寄', openVal);
+    const openTxt = isPending ? PENDING : NW("lbl-yori", "寄", openVal);
 
     const rv      = parseFloat(r.range_pct);
     const rvClass = isNaN(rv) ? "" : rv > 0 ? "gap-pos" : rv < 0 ? "gap-neg" : "gap-zero";
@@ -454,10 +520,10 @@ function renderTable() {
       ? (parseFloat(r.range_yen) > 0 ? "+" : "") + parseFloat(r.range_yen).toFixed(1) : "—";
 
     const closeVal = r.next_close ? parseFloat(r.next_close).toLocaleString() : "—";
-    const closeTxt = isPending ? PENDING : NW('lbl-close', '終', closeVal);
+    const closeTxt = isPending ? PENDING : NW("lbl-close", "終", closeVal);
 
     const volVal = r.volume ? parseInt(r.volume).toLocaleString() : "—";
-    const volTxt = isPending ? PENDING : NW('lbl-vol', '出', volVal);
+    const volTxt = isPending ? PENDING : NW("lbl-vol", "出", volVal);
 
     const badge  = r.stop_type === "stop_high"
       ? '<span class="badge badge-high">高</span>'
@@ -474,11 +540,11 @@ function renderTable() {
       <td>${badge}</td>
       <td>${prevClose}</td>
       <td>${openTxt}</td>
-      <td style="text-align:right" class="${isPending?'':gpClass}">${isPending?'—':gyTxt}</td>
-      <td style="text-align:right" class="${isPending?'':gpClass}">${isPending?'—':gpTxt}</td>
+      <td style="text-align:right" class="${isPending?"":gpClass}">${isPending?"—":gyTxt}</td>
+      <td style="text-align:right" class="${isPending?"":gpClass}">${isPending?"—":gpTxt}</td>
       <td>${closeTxt}</td>
-      <td style="text-align:right" class="${isPending?'':rvClass}">${isPending?'—':ryTxt}</td>
-      <td style="text-align:right" class="${isPending?'':rvClass}">${isPending?'—':rvTxt}</td>
+      <td style="text-align:right" class="${isPending?"":rvClass}">${isPending?"—":ryTxt}</td>
+      <td style="text-align:right" class="${isPending?"":rvClass}">${isPending?"—":rvTxt}</td>
       <td>${volTxt}</td>
       <td>${yorazu}</td>
     </tr>`;
@@ -506,7 +572,7 @@ function goPage(p) {
   renderTable();
 }
 
-// ソート
+/* ===== ソートクリック ===== */
 document.querySelectorAll("thead th[data-col]").forEach(th => {
   th.addEventListener("click", () => {
     const col = th.dataset.col;
@@ -520,16 +586,17 @@ document.querySelectorAll("thead th[data-col]").forEach(th => {
   });
 });
 
-// フィルター変更
+/* ===== フィルター変更 ===== */
 ["filterType","filterMarket","filterDateFrom","filterDateTo","filterCode","pageSize"]
   .forEach(id => document.getElementById(id).addEventListener("change", applyFilters));
 document.getElementById("filterCode").addEventListener("input", applyFilters);
 
-// 初期化
+/* ===== 初期化 ===== */
 (async () => {
   allRows = await loadCSV();
   if (!allRows.length) return;
   populateMarkets(allRows);
+  renderMonthTabs();
   filtered = [...allRows];
   sortRows();
   renderStats();
