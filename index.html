@@ -90,10 +90,22 @@
   thead th.sorted-asc::after  { content: ' ▲'; font-size: 10px; }
   thead th.sorted-desc::after { content: ' ▼'; font-size: 10px; }
 
-  tbody tr:hover { background: #f5f7ff; }
-  tbody tr:nth-child(even) { background: #fafbff; }
-  tbody tr:nth-child(even):hover { background: #f0f3ff; }
-  td { padding: 7px 10px; border-bottom: 1px solid #eef; white-space: nowrap; }
+  tbody tr.row-odd  { background: #ffffff; }
+  tbody tr.row-even { background: #e4eaf8; }
+  tbody tr.row-odd:hover  { background: #d6dff5; }
+  tbody tr.row-even:hover { background: #c8d4f0; }
+  td { padding: 7px 10px; border-bottom: 1px solid #d8deee; white-space: nowrap; }
+
+  tr.date-sep td {
+    background: #2e3a6e;
+    color: #e8ecff;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 5px 12px;
+    letter-spacing: 0.05em;
+    border-top: 3px solid #1a1a2e;
+    border-bottom: 2px solid #4a5aaa;
+  }
 
   .badge {
     display: inline-block;
@@ -327,7 +339,16 @@ function renderTable() {
   const page  = filtered.slice(start, end);
 
   const tbody = document.getElementById("tableBody");
+  let lastDate = null;
+  let groupIdx = 0;
   tbody.innerHTML = page.map(r => {
+    let sep = "";
+    if (r.stop_date !== lastDate) {
+      lastDate = r.stop_date;
+      groupIdx = 0;
+      sep = `<tr class="date-sep"><td colspan="15">● ${r.stop_date}（翌営業日: ${r.next_date}）</td></tr>`;
+    }
+    const rowClass = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
     const gp = parseFloat(r.gap_pct);
     const gpClass = isNaN(gp) ? "" : gp > 0 ? "gap-pos" : gp < 0 ? "gap-neg" : "gap-zero";
     const gpTxt = isNaN(gp) ? "—" : (gp > 0 ? "+" : "") + gp.toFixed(2) + "%";
@@ -354,7 +375,7 @@ function renderTable() {
     const ryTxt = r.range_yen && r.range_yen !== "" ?
       (parseFloat(r.range_yen) > 0 ? "+" : "") + parseFloat(r.range_yen).toFixed(1) : "—";
 
-    return `<tr>
+    return sep + `<tr class="${rowClass}">
       <td>${r.stop_date}</td>
       <td>${r.next_date}</td>
       <td><a href="https://kabutan.jp/stock/?code=${r.code}" target="_blank">${r.code}</a></td>
