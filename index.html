@@ -99,6 +99,25 @@
   .pos { color: #d32f2f; }
   .neg { color: #1565c0; }
 
+  /* ===== フィルターボタン（stat-cardと同形状） ===== */
+  .stat-btn {
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    min-width: 72px;
+  }
+  .stat-btn:hover { background: #dde4f5; border-color: #a0b0d8; }
+  .stat-btn:active { transform: scale(0.97); }
+  .stat-btn.btn-on-high {
+    background: #fde8e8;
+    border-color: #e57373;
+  }
+  .stat-btn.btn-on-high .val { color: #c62828; }
+  .stat-btn.btn-on-low {
+    background: #e3f0ff;
+    border-color: #64b5f6;
+  }
+  .stat-btn.btn-on-low .val { color: #1565c0; }
+
   /* ===== テーブルエリア ===== */
   .table-wrap {
     flex: 1;
@@ -453,10 +472,20 @@ function renderStats() {
   const zer    = gaps.filter(g => g === 0).length;
   const yorazu = filtered.filter(r => r.yorazu === "True").length;
 
+  const currentType = document.getElementById("filterType").value;
+  const highOn = currentType === "stop_high";
+  const lowOn  = currentType === "stop_low";
+
   document.getElementById("statsBar").innerHTML = `
     <div class="stat-card"><div class="val">${filtered.length}</div><div class="lbl">銘柄数</div></div>
     <div class="stat-card"><div class="val ${cls(medHigh)}">${fmt(medHigh)}</div><div class="lbl">S高平均ギャップ</div></div>
+    <div class="stat-card stat-btn ${highOn ? "btn-on-high" : ""}" onclick="setTypeFilter('stop_high')">
+      <div class="val">S高</div><div class="lbl">のみ表示</div>
+    </div>
     <div class="stat-card"><div class="val ${cls(medLow)}">${fmt(medLow)}</div><div class="lbl">S安平均ギャップ</div></div>
+    <div class="stat-card stat-btn ${lowOn ? "btn-on-low" : ""}" onclick="setTypeFilter('stop_low')">
+      <div class="val">S安</div><div class="lbl">のみ表示</div>
+    </div>
     <div class="stat-card"><div class="val pos">${pos}</div><div class="lbl">ギャップアップ</div></div>
     <div class="stat-card"><div class="val neg">${neg}</div><div class="lbl">ギャップダウン</div></div>
     <div class="stat-card"><div class="val">${zer}</div><div class="lbl">ギャップなし</div></div>
@@ -570,6 +599,13 @@ function renderTable() {
 function goPage(p) {
   currentPage = Math.max(1, Math.min(p, totalPages));
   renderTable();
+}
+
+/* S高/S安ワンクリックフィルター（同じボタン再クリックでリセット） */
+function setTypeFilter(type) {
+  const sel = document.getElementById("filterType");
+  sel.value = sel.value === type ? "" : type;
+  applyFilters();
 }
 
 /* ===== ソートクリック ===== */
