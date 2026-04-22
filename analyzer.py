@@ -75,10 +75,13 @@ def fetch_price_data(code: str, target_date: date) -> dict | None:
     """
     yfinance で指定銘柄・指定日の始値・出来高を取得。
     東証銘柄は code + '.T' で取得（例: 3103.T, 281A.T）。
+
+    注意: yfinance は日本株で T+1 遅延が発生することがある。
+    返されたデータの日付が target_date と一致するか検証する。
     """
     ticker_str = f"{code}.T"
     start = target_date.strftime("%Y-%m-%d")
-    end = (target_date + timedelta(days=1)).strftime("%Y-%m-%d")
+    end = (target_date + timedelta(days=2)).strftime("%Y-%m-%d")  # +2日で確実に取得
 
     try:
         ticker = yf.Ticker(ticker_str)
@@ -87,16 +90,28 @@ def fetch_price_data(code: str, target_date: date) -> dict | None:
         if hist.empty:
             return None
 
-        row = hist.iloc[0]
-        open_price = float(row["Open"])
-        volume = int(row["Volume"])
+        # target_date (JST) と一致する行を探す
+        target_str = target_date.strftime("%Y-%m-%d")
+        matched = None
+        for idx, row in hist.iterrows():
+            # yfinance のインデックスは timezone-aware (Asia/Tokyo) の場合がある
+            row_date = idx.date() if hasattr(idx, "date") else idx
+            if str(row_date) == target_str:
+                matched = row
+                break
 
-        close_price = float(row["Close"])
+        if matched is None:
+            print(f"    ! {code}: {target_str} のデータが見つからない (返却: {[str(i.date()) for i in hist.index]})")
+            return None
+
+        open_price  = float(matched["Open"])
+        close_price = float(matched["Close"])
+        volume      = int(matched["Volume"])
         yorazu = volume == 0 or open_price == 0
 
         return {
-            "open":  round(open_price,  1) if open_price  else None,
-            "close": round(close_price, 1) if close_price else None,
+            "open":   round(open_price,  1) if open_price  else None,
+            "close":  round(close_price, 1) if close_price else None,
             "volume": volume,
             "yorazu": yorazu,
         }
