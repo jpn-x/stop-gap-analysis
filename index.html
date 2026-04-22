@@ -696,7 +696,7 @@ function renderTable() {
       let label;
       if (r._pending) {
         label = `⏳ ${r.stop_date}（翌営業日: ${r.next_date}）　取得待ち`;
-      } else if (r.next_date >= todayJST) {
+      } else if (!r.next_open && r.next_date >= todayJST) {
         label = `● ${r.stop_date}（翌営業日: ${r.next_date}）　⚠ 当日データ取得中`;
       } else {
         label = `● ${r.stop_date}（翌営業日: ${r.next_date}）`;
@@ -704,7 +704,7 @@ function renderTable() {
       sep = `<tr class="date-sep"><td colspan="15">${label}</td></tr>`;
     }
     const rowClass  = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
-    const isPending = r._pending === true || r.next_date >= todayJST;
+    const isPending = r._pending === true || (!r.next_open && r.next_date >= todayJST);
 
     const prevClose = NW("lbl-prev", "前", parseFloat(r.prev_close).toLocaleString());
 
