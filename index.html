@@ -343,7 +343,8 @@
 </div>
 
 <script>
-const CSV_URL = "data/gap_data.csv";
+const CSV_URL       = "data/gap_data.csv";
+const STOPSTOCK_URL = "https://raw.githubusercontent.com/stopstock/stop-data/main/data/stock_data.json";
 let allRows     = [];
 let filtered    = [];
 let currentPage = 1;
@@ -362,6 +363,53 @@ async function loadCSV() {
   } catch (e) {
     document.getElementById("loading").innerHTML =
       `<div class="error">データの読み込みに失敗しました。<br>${e.message}</div>`;
+    return [];
+  }
+}
+
+/* ===== 翌平日を返す（土日スキップ、祝日は近似） ===== */
+function nextWeekday(dateStr) {
+  const d = new Date(dateStr + "T09:00:00+09:00");
+  do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6);
+  return d.toISOString().slice(0, 10);
+}
+
+/* ===== stopstock から未取得銘柄を取得して pending 行として返す ===== */
+async function loadStopstock(existingKeys) {
+  try {
+    const resp = await fetch(STOPSTOCK_URL + "?t=" + Date.now());
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const pending = [];
+
+    for (const days of Object.values(data)) {
+      for (const dayData of days) {
+        const stopDate = dayData.date;
+        const nextDate = nextWeekday(stopDate);
+        for (const stopType of ["stop_high", "stop_low"]) {
+          for (const stock of (dayData[stopType] || [])) {
+            const key = `${stopDate}_${stock.code}_${stopType}`;
+            if (existingKeys.has(key)) continue; // CSV済みはスキップ
+            pending.push({
+              stop_date:  stopDate,
+              next_date:  nextDate,
+              code:       stock.code,
+              name:       stock.name,
+              market:     stock.market,
+              stop_type:  stopType,
+              prev_close: stock.price.replace(/,/g, ""),
+              next_open: "", gap_yen: "", gap_pct: "",
+              next_close: "", range_yen: "", range_pct: "",
+              volume: "", yorazu: "",
+              _pending: true,
+            });
+          }
+        }
+      }
+    }
+    return pending;
+  } catch(e) {
+    console.warn("stopstock fetch failed:", e);
     return [];
   }
 }
@@ -585,14 +633,18 @@ function renderTable() {
     if (r.stop_date !== lastDate) {
       lastDate = r.stop_date;
       groupIdx = 0;
-      const isLatest = r.next_date >= todayJST;
-      const label    = isLatest
-        ? `● ${r.stop_date}（翌営業日: ${r.next_date}）　⚠ 当日データ取得中`
-        : `● ${r.stop_date}（翌営業日: ${r.next_date}）`;
+      let label;
+      if (r._pending) {
+        label = `⏳ ${r.stop_date}（翌営業日: ${r.next_date}）　取得待ち`;
+      } else if (r.next_date >= todayJST) {
+        label = `● ${r.stop_date}（翌営業日: ${r.next_date}）　⚠ 当日データ取得中`;
+      } else {
+        label = `● ${r.stop_date}（翌営業日: ${r.next_date}）`;
+      }
       sep = `<tr class="date-sep"><td colspan="15">${label}</td></tr>`;
     }
     const rowClass  = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
-    const isPending = r.next_date >= todayJST;
+    const isPending = r._pending === true || r.next_date >= todayJST;
 
     const prevClose = NW("lbl-prev", "前", parseFloat(r.prev_close).toLocaleString());
 
@@ -705,6 +757,12 @@ document.getElementById("filterCode").addEventListener("input", applyFilters);
 (async () => {
   allRows = await loadCSV();
   if (!allRows.length) return;
+
+  // stopstock から CSV 未収録の最新銘柄を取得して先頭に追加
+  const existingKeys = new Set(allRows.map(r => `${r.stop_date}_${r.code}_${r.stop_type}`));
+  const pendingRows  = await loadStopstock(existingKeys);
+  if (pendingRows.length) allRows = [...pendingRows, ...allRows];
+
   populateMarkets(allRows);
   renderMonthTabs();
   filtered = [...allRows];
