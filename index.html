@@ -161,6 +161,10 @@
   tbody tr.row-even { background: #e4eaf8; }
   tbody tr.row-odd:hover  { background: #d6dff5; }
   tbody tr.row-even:hover { background: #c8d4f0; }
+  tbody tr.row-low-odd  { background: #fff0f5; }
+  tbody tr.row-low-even { background: #ffe4e1; }
+  tbody tr.row-low-odd:hover  { background: #ffd6e0; }
+  tbody tr.row-low-even:hover { background: #ffc8cc; }
   td { padding: 6px 7px; border-bottom: 1px solid #d8deee; white-space: nowrap; font-size: 13px; }
 
   tr.date-sep td {
@@ -708,7 +712,10 @@ function renderTable() {
       }
       sep = `<tr class="date-sep"><td colspan="17">${label}</td></tr>`;
     }
-    const rowClass  = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
+    const isLow = r.stop_type === "stop_low";
+    const rowClass  = groupIdx++ % 2 === 0
+      ? (isLow ? "row-low-odd"  : "row-odd")
+      : (isLow ? "row-low-even" : "row-even");
     const isPending = r._pending === true || (!r.next_open && r.next_date >= todayJST);
 
     const prevClose = NW("lbl-prev", "前", parseFloat(r.prev_close).toLocaleString());
