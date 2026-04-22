@@ -33,6 +33,8 @@ CSV_COLUMNS = [
     "next_open",    # 翌営業日始値
     "gap_yen",      # 始値ギャップ（円）
     "gap_pct",      # 始値ギャップ（%）
+    "next_high",    # 翌営業日高値
+    "next_low",     # 翌営業日安値
     "next_close",   # 翌営業日終値（当日終値）
     "range_yen",    # 前日終値→当日終値 値幅（円）
     "range_pct",    # 前日終値→当日終値 値幅（%）
@@ -106,12 +108,16 @@ def fetch_price_data(code: str, target_date: date) -> dict | None:
             return None
 
         open_price  = float(matched["Open"])
+        high_price  = float(matched["High"])
+        low_price   = float(matched["Low"])
         close_price = float(matched["Close"])
         volume      = int(matched["Volume"])
         yorazu = volume == 0 or open_price == 0
 
         return {
             "open":   round(open_price,  1) if open_price  else None,
+            "high":   round(high_price,  1) if high_price  else None,
+            "low":    round(low_price,   1) if low_price   else None,
             "close":  round(close_price, 1) if close_price else None,
             "volume": volume,
             "yorazu": yorazu,
@@ -293,6 +299,8 @@ def process_day(
 
         if price_data and price_data["open"]:
             next_open  = price_data["open"]
+            next_high  = price_data["high"]
+            next_low   = price_data["low"]
             next_close = price_data["close"]
             gap_yen   = round(next_open  - prev_close, 1)
             gap_pct   = round((next_open  - prev_close) / prev_close * 100, 2)
@@ -302,6 +310,8 @@ def process_day(
             yorazu    = price_data["yorazu"]
         else:
             next_open  = None
+            next_high  = None
+            next_low   = None
             next_close = None
             gap_yen    = None
             gap_pct    = None
@@ -323,6 +333,8 @@ def process_day(
             "next_open":  next_open,
             "gap_yen":    gap_yen,
             "gap_pct":    gap_pct,
+            "next_high":  next_high,
+            "next_low":   next_low,
             "next_close": next_close,
             "range_yen":  range_yen,
             "range_pct":  range_pct,

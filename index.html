@@ -146,9 +146,9 @@
     z-index: 5;
     background: #1a1a2e;
     color: #fff;
-    padding: 9px 10px;
+    padding: 8px 7px;
     text-align: left;
-    font-size: 13px;
+    font-size: 12px;
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
@@ -161,7 +161,7 @@
   tbody tr.row-even { background: #e4eaf8; }
   tbody tr.row-odd:hover  { background: #d6dff5; }
   tbody tr.row-even:hover { background: #c8d4f0; }
-  td { padding: 7px 10px; border-bottom: 1px solid #d8deee; white-space: nowrap; }
+  td { padding: 6px 7px; border-bottom: 1px solid #d8deee; white-space: nowrap; font-size: 13px; }
 
   tr.date-sep td {
     background: #2e3a6e;
@@ -221,6 +221,8 @@
   }
   .lbl-prev  { color: #fff; background: #333; }
   .lbl-yori  { color: #fff; background: #1565c0; }
+  .lbl-high  { color: #fff; background: #c62828; }
+  .lbl-low   { color: #fff; background: #1565c0; }
   .lbl-close { color: #fff; background: #6d4c41; }
   .lbl-vol   { color: #fff; background: #6a1b9a; }
 
@@ -355,6 +357,8 @@
         <th data-col="next_open">翌営業日始値</th>
         <th data-col="gap_yen">ギャップ(円)</th>
         <th data-col="gap_pct">ギャップ(%)</th>
+        <th data-col="next_high">当日高値</th>
+        <th data-col="next_low">当日安値</th>
         <th data-col="next_close">当日終値</th>
         <th data-col="range_yen">値幅(円)</th>
         <th data-col="range_pct">値幅(%)</th>
@@ -459,6 +463,7 @@ async function loadStopstock(existingKeys) {
               stop_type:  stopType,
               prev_close: stock.price.replace(/,/g, ""),
               next_open: "", gap_yen: "", gap_pct: "",
+              next_high: "", next_low: "",
               next_close: "", range_yen: "", range_pct: "",
               volume: "", yorazu: "",
               _pending: true,
@@ -701,7 +706,7 @@ function renderTable() {
       } else {
         label = `● ${r.stop_date}（翌営業日: ${r.next_date}）`;
       }
-      sep = `<tr class="date-sep"><td colspan="15">${label}</td></tr>`;
+      sep = `<tr class="date-sep"><td colspan="17">${label}</td></tr>`;
     }
     const rowClass  = groupIdx++ % 2 === 0 ? "row-odd" : "row-even";
     const isPending = r._pending === true || (!r.next_open && r.next_date >= todayJST);
@@ -723,6 +728,10 @@ function renderTable() {
     const ryTxt   = r.range_yen
       ? (parseFloat(r.range_yen) > 0 ? "+" : "") + parseFloat(r.range_yen).toFixed(1) : "—";
 
+    const highVal  = r.next_high  ? parseFloat(r.next_high).toLocaleString()  : "—";
+    const highTxt  = isPending ? PENDING : NW("lbl-high",  "高", highVal);
+    const lowVal   = r.next_low   ? parseFloat(r.next_low).toLocaleString()   : "—";
+    const lowTxt   = isPending ? PENDING : NW("lbl-low",   "安", lowVal);
     const closeVal = r.next_close ? parseFloat(r.next_close).toLocaleString() : "—";
     const closeTxt = isPending ? PENDING : NW("lbl-close", "終", closeVal);
 
@@ -764,6 +773,8 @@ function renderTable() {
       <td>${openTxt}</td>
       <td style="text-align:right" class="${isPending?"":gpClass}">${isPending?"—":gyTxt}</td>
       <td style="text-align:right" class="${isPending?"":gpClass}">${isPending?"—":gpTxt}</td>
+      <td>${highTxt}</td>
+      <td>${lowTxt}</td>
       <td>${closeTxt}</td>
       <td style="text-align:right" class="${isPending?"":rvClass}">${isPending?"—":ryTxt}</td>
       <td style="text-align:right" class="${isPending?"":rvClass}">${isPending?"—":rvTxt}</td>
