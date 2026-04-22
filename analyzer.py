@@ -38,6 +38,7 @@ CSV_COLUMNS = [
     "range_pct",    # 前日終値→当日終値 値幅（%）
     "volume",       # 翌営業日出来高
     "yorazu",       # 寄らずフラグ（True=寄らず）
+    "reason",       # ストップ高安の理由（カブタンニュース見出し）
 ]
 
 
@@ -120,6 +121,72 @@ def fetch_price_data(code: str, target_date: date) -> dict | None:
         return None
 
 
+def fetch_day_reasons(nbd: date, sample_code: str) -> dict:
+    """
+    カブタン「前日に動いた銘柄 part2」記事から {code: reason} を一括取得。
+    翌営業日(nbd)に公開される記事を対象とし、1日分まとめて取得することで
+    HTTP リクエスト数を最小化する。
+    """
+    import re as _re
+    try:
+        # sample_code のニュース一覧から nbd 公開の「前日に動いた銘柄 part2」を探す
+        list_url = f"https://kabutan.jp/stock/news/?code={sample_code}"
+        resp = requests.get(
+            list_url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        text = resp.content.decode("utf-8", errors="ignore")
+
+        nbd_str = nbd.strftime("%Y-%m-%d")
+        rows = _re.findall(r"<tr[^>]*>(.*?)</tr>", text, _re.DOTALL)
+        article_url = None
+        for row in rows:
+            if nbd_str in row and "前日に動いた銘柄" in row:
+                # href="/stock/news?code=XXXX&b=nYYYYMMDDZZZZ" 形式
+                m = _re.search(r'href="(/stock/news\?[^"]+&b=(n\d+))"', row)
+                if m:
+                    # 記事本文の直接URL: /news/marketnews/?b=nXXX
+                    b_id = m.group(2)
+                    article_url = f"https://kabutan.jp/news/marketnews/?b={b_id}"
+                    break
+
+        if not article_url:
+            print("    → 「前日に動いた銘柄 part2」記事が見つからず（理由なし）")
+            return {}
+
+        print(f"    → 理由記事取得: {article_url}")
+        time.sleep(0.3)
+        resp2 = requests.get(
+            article_url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+            timeout=8,
+        )
+        resp2.raise_for_status()
+        text2 = resp2.content.decode("utf-8", errors="ignore")
+
+        # 実際の HTML 構造:
+        # 名前&lt;<a href="/stock/?code=CODE">CODE</a>&gt; PRICE CHANGE<br />
+        # 理由テキスト。<br />
+        entries = _re.findall(
+            r'href="/stock/\?code=(\w+)"[^>]*>[^<]+</a>&gt;[^<\n]*<br\s*/>\s*([^<\n。．]{4,})[。．]?<br',
+            text2,
+        )
+        result = {}
+        for code, reason in entries:
+            clean = reason.strip()
+            if clean:
+                result[code] = clean[:120]
+
+        print(f"    → 理由取得完了: {len(result)} 銘柄")
+        return result
+
+    except Exception as e:
+        print(f"    ! fetch_day_reasons 失敗: {e}")
+        return {}
+
+
 # ── CSV 操作 ──────────────────────────────────────────────────────────────────
 
 def load_existing() -> pd.DataFrame:
@@ -190,64 +257,79 @@ def process_day(
     if nbd > today:
         return []
 
+    # 新規処理対象を先にリストアップ
+    new_stocks = [
+        (st, s)
+        for st in ("stop_high", "stop_low")
+        for s in day_data.get(st, [])
+        if f"{stop_date_str}_{s['code']}_{st}" not in existing_keys
+    ]
+    if not new_stocks:
+        return []
+
+    # 1日分の理由を一括取得（「前日に動いた銘柄 part2」記事）
+    # 複数コードを試してどれかで記事が見つかれば OK
+    day_reasons: dict = {}
+    for _, _s in new_stocks[:5]:
+        day_reasons = fetch_day_reasons(nbd, _s["code"])
+        if day_reasons:
+            break
+
     results = []
+    for stop_type, stock in new_stocks:
+        code = stock["code"]
 
-    for stop_type in ("stop_high", "stop_low"):
-        for stock in day_data.get(stop_type, []):
-            code = stock["code"]
-            key = f"{stop_date_str}_{code}_{stop_type}"
+        prev_close_str = stock.get("price", "").replace(",", "")
+        try:
+            prev_close = float(prev_close_str)
+        except ValueError:
+            continue
 
-            if key in existing_keys:
-                continue  # 処理済みはスキップ
+        label = "ストップ高" if stop_type == "stop_high" else "ストップ安"
+        print(f"  [{label}] {code} {stock['name']}  終値={prev_close}円 → {nbd} 始値取得中...")
 
-            prev_close_str = stock.get("price", "").replace(",", "")
-            try:
-                prev_close = float(prev_close_str)
-            except ValueError:
-                continue
+        price_data = fetch_price_data(code, nbd)
+        time.sleep(0.4)  # レート制限対策
 
-            label = "ストップ高" if stop_type == "stop_high" else "ストップ安"
-            print(f"  [{label}] {code} {stock['name']}  終値={prev_close}円 → {nbd} 始値取得中...")
+        if price_data and price_data["open"]:
+            next_open  = price_data["open"]
+            next_close = price_data["close"]
+            gap_yen   = round(next_open  - prev_close, 1)
+            gap_pct   = round((next_open  - prev_close) / prev_close * 100, 2)
+            range_yen = round(next_close - prev_close, 1) if next_close else None
+            range_pct = round((next_close - prev_close) / prev_close * 100, 2) if next_close else None
+            volume    = price_data["volume"]
+            yorazu    = price_data["yorazu"]
+        else:
+            next_open  = None
+            next_close = None
+            gap_yen    = None
+            gap_pct    = None
+            range_yen  = None
+            range_pct  = None
+            volume     = price_data["volume"] if price_data else None
+            yorazu     = True
 
-            price_data = fetch_price_data(code, nbd)
-            time.sleep(0.4)  # レート制限対策
+        reason = day_reasons.get(code, "")
 
-            if price_data and price_data["open"]:
-                next_open  = price_data["open"]
-                next_close = price_data["close"]
-                gap_yen  = round(next_open  - prev_close, 1)
-                gap_pct  = round((next_open  - prev_close) / prev_close * 100, 2)
-                range_yen = round(next_close - prev_close, 1) if next_close else None
-                range_pct = round((next_close - prev_close) / prev_close * 100, 2) if next_close else None
-                volume  = price_data["volume"]
-                yorazu  = price_data["yorazu"]
-            else:
-                next_open  = None
-                next_close = None
-                gap_yen    = None
-                gap_pct    = None
-                range_yen  = None
-                range_pct  = None
-                volume  = price_data["volume"] if price_data else None
-                yorazu  = True
-
-            results.append({
-                "stop_date":  stop_date_str,
-                "next_date":  nbd.isoformat(),
-                "code":       code,
-                "name":       stock["name"],
-                "market":     stock["market"],
-                "stop_type":  stop_type,
-                "prev_close": prev_close,
-                "next_open":  next_open,
-                "gap_yen":    gap_yen,
-                "gap_pct":    gap_pct,
-                "next_close": next_close,
-                "range_yen":  range_yen,
-                "range_pct":  range_pct,
-                "volume":     volume,
-                "yorazu":     yorazu,
-            })
+        results.append({
+            "stop_date":  stop_date_str,
+            "next_date":  nbd.isoformat(),
+            "code":       code,
+            "name":       stock["name"],
+            "market":     stock["market"],
+            "stop_type":  stop_type,
+            "prev_close": prev_close,
+            "next_open":  next_open,
+            "gap_yen":    gap_yen,
+            "gap_pct":    gap_pct,
+            "next_close": next_close,
+            "range_yen":  range_yen,
+            "range_pct":  range_pct,
+            "volume":     volume,
+            "yorazu":     yorazu,
+            "reason":     reason,
+        })
 
     return results
 

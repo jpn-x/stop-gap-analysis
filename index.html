@@ -232,6 +232,38 @@
   .pending      { color: #aaa; font-style: italic; font-size: 11px; white-space: nowrap; }
   .pending-wrap { text-align: right; }
 
+  /* ===== 理由テキスト ===== */
+  .reason-text {
+    font-size: 11px;
+    color: #555;
+    margin-top: 2px;
+    white-space: normal;
+    line-height: 1.3;
+    max-width: 260px;
+  }
+
+  /* ===== 連続ストップバッジ ===== */
+  .streak-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 8px;
+    margin-left: 4px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .streak-high {
+    background: #fde8e8;
+    color: #c62828;
+    border: 1px solid #e57373;
+  }
+  .streak-low {
+    background: #e3f0ff;
+    color: #1565c0;
+    border: 1px solid #64b5f6;
+  }
+
   .loading { text-align: center; padding: 40px; color: #888; font-size: 16px; }
   .error   { text-align: center; padding: 40px; color: #c00; }
 
@@ -365,6 +397,34 @@ async function loadCSV() {
       `<div class="error">データの読み込みに失敗しました。<br>${e.message}</div>`;
     return [];
   }
+}
+
+/* ===== 連続ストップ日数マップを構築 ===== */
+// key: "code_stop_type_stop_date" → 連続日数（1始まり）
+let streakMap = {};
+function buildStreaks(rows) {
+  const groups = {};
+  for (const r of rows) {
+    if (!r.stop_date || !r.code || !r.stop_type) continue;
+    const key = `${r.code}_${r.stop_type}`;
+    if (!groups[key]) groups[key] = new Set();
+    groups[key].add(r.stop_date);
+  }
+  const result = {};
+  for (const [key, dateSet] of Object.entries(groups)) {
+    const sorted = [...dateSet].sort(); // 昇順
+    for (let i = 0; i < sorted.length; i++) {
+      let streak = 1;
+      if (i > 0) {
+        const prevNext = nextWeekday(sorted[i - 1]);
+        if (prevNext === sorted[i]) {
+          streak = (result[`${key}_${sorted[i - 1]}`] || 1) + 1;
+        }
+      }
+      result[`${key}_${sorted[i]}`] = streak;
+    }
+  }
+  return result;
 }
 
 /* ===== 翌平日を返す（土日スキップ、祝日は近似） ===== */
@@ -669,11 +729,24 @@ function renderTable() {
     const volVal = r.volume ? parseInt(r.volume).toLocaleString() : "—";
     const volTxt = isPending ? PENDING : NW("lbl-vol", "出", volVal);
 
+    // 連続ストップバッジ
+    const streakKey = `${r.code}_${r.stop_type}_${r.stop_date}`;
+    const streak = streakMap[streakKey] || 1;
+    const streakClass = r.stop_type === "stop_high" ? "streak-high" : "streak-low";
+    const streakBadge = streak >= 2
+      ? `<span class="streak-badge ${streakClass}">${streak}日連続</span>`
+      : "";
+
     const badge  = r.stop_type === "stop_high"
       ? '<span class="badge badge-high">高</span>'
       : '<span class="badge badge-low">安</span>';
     const yorazu = r.yorazu === "True"
       ? '<span class="badge badge-yorazu">寄らず</span>' : "";
+
+    // 理由テキスト
+    const reasonHtml = r.reason
+      ? `<div class="reason-text">📰 ${r.reason}</div>`
+      : "";
 
     // Y/X ソーシャルリンク
     const yUrl = `https://finance.yahoo.co.jp/quote/${r.code}.T/forum`;
@@ -684,9 +757,9 @@ function renderTable() {
       <td>${r.stop_date}</td>
       <td>${r.next_date}</td>
       <td><a href="https://kabutan.jp/stock/?code=${r.code}" target="_blank" class="btn-k">K</a> <a href="https://kabutan.jp/stock/?code=${r.code}" target="_blank">${r.code}</a></td>
-      <td>${snsLinks}${r.name}</td>
+      <td>${snsLinks}${r.name}${reasonHtml}</td>
       <td>${r.market}</td>
-      <td>${badge}</td>
+      <td>${badge}${streakBadge}</td>
       <td>${prevClose}</td>
       <td>${openTxt}</td>
       <td style="text-align:right" class="${isPending?"":gpClass}">${isPending?"—":gyTxt}</td>
@@ -762,6 +835,9 @@ document.getElementById("filterCode").addEventListener("input", applyFilters);
   const existingKeys = new Set(allRows.map(r => `${r.stop_date}_${r.code}_${r.stop_type}`));
   const pendingRows  = await loadStopstock(existingKeys);
   if (pendingRows.length) allRows = [...pendingRows, ...allRows];
+
+  // 連続ストップ日数マップを構築
+  streakMap = buildStreaks(allRows);
 
   populateMarkets(allRows);
   renderMonthTabs();
