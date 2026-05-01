@@ -361,10 +361,13 @@ def main():
     all_days.sort(key=lambda x: x["date"])  # 古い順
 
     if not backfill:
-        # 通常モード: 前営業日のみ
-        target = prev_business_day(today)
-        all_days = [d for d in all_days if d["date"] == target.isoformat()]
-        print(f"対象日: {target} ({len(all_days)} 件)")
+        # 通常モード: 翌営業日が今日以前で CSV 未収録の日をすべて処理
+        # （祝日明けに前日分が抜ける問題を防ぐ）
+        all_days = [
+            d for d in all_days
+            if next_business_day(date.fromisoformat(d["date"])) <= today
+        ]
+        print(f"対象: {len(all_days)} 日分（翌営業日≦今日）")
     else:
         print(f"バックフィルモード: {len(all_days)} 日分を処理")
 
