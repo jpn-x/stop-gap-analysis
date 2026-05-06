@@ -482,7 +482,10 @@ async function loadStopstock(existingKeys) {
     const resp = await fetch(STOPSTOCK_URL + "?t=" + Date.now());
     if (!resp.ok) return [];
     const data = await resp.json();
-    const pending = [];
+
+    // code+stop_type ごとに最新の stop_date だけ残す
+    // （祝日連続などで同じ銘柄が複数日付で重複登録されるケースを除去）
+    const latest = {}; // "code_stopType" → {stopDate, nextDate, stock, stopType}
 
     for (const days of Object.values(data)) {
       for (const dayData of days) {
@@ -490,26 +493,31 @@ async function loadStopstock(existingKeys) {
         const nextDate = nextWeekday(stopDate);
         for (const stopType of ["stop_high", "stop_low"]) {
           for (const stock of (dayData[stopType] || [])) {
-            const key = `${stopDate}_${stock.code}_${stopType}`;
-            if (existingKeys.has(key)) continue; // CSV済みはスキップ
-            pending.push({
-              stop_date:  stopDate,
-              next_date:  nextDate,
-              code:       stock.code,
-              name:       stock.name,
-              market:     stock.market,
-              stop_type:  stopType,
-              prev_close: stock.price.replace(/,/g, ""),
-              next_open: "", gap_yen: "", gap_pct: "",
-              next_high: "", next_low: "",
-              next_close: "", range_yen: "", range_pct: "",
-              volume: "", yorazu: "",
-              _pending: true,
-            });
+            if (existingKeys.has(`${stopDate}_${stock.code}_${stopType}`)) continue;
+            const k = `${stock.code}_${stopType}`;
+            if (!latest[k] || stopDate > latest[k].stopDate) {
+              latest[k] = { stopDate, nextDate, stock, stopType };
+            }
           }
         }
       }
     }
+
+    const pending = Object.values(latest).map(({ stopDate, nextDate, stock, stopType }) => ({
+      stop_date:  stopDate,
+      next_date:  nextDate,
+      code:       stock.code,
+      name:       stock.name,
+      market:     stock.market,
+      stop_type:  stopType,
+      prev_close: stock.price.replace(/,/g, ""),
+      next_open: "", gap_yen: "", gap_pct: "",
+      next_high: "", next_low: "",
+      next_close: "", range_yen: "", range_pct: "",
+      volume: "", yorazu: "",
+      _pending: true,
+    }));
+
     return pending;
   } catch(e) {
     console.warn("stopstock fetch failed:", e);
