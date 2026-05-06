@@ -257,6 +257,13 @@ def process_day(
 ) -> list[dict]:
     """1日分のストップ高安銘柄を処理してギャップデータのリストを返す"""
     stop_date = date.fromisoformat(stop_date_str)
+
+    # 祝日・休日のデータはストップ高安が発生しないためスキップ
+    # （stopstock.json は祝日でも前日と同じ銘柄を重複掲載する場合がある）
+    if not is_business_day(stop_date):
+        print(f"  {stop_date_str} は非営業日（祝日・休場）→ スキップ")
+        return []
+
     nbd = next_business_day(stop_date)
 
     # 翌営業日がまだ来ていない場合はスキップ

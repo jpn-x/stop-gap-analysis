@@ -469,10 +469,34 @@ function buildStreaks(rows) {
   return result;
 }
 
-/* ===== 翌平日を返す（土日スキップ、祝日は近似） ===== */
+/* ===== 日本の祝日セット（2026〜2027）===== */
+const JP_HOLIDAYS = new Set([
+  "2026-01-01","2026-01-12","2026-02-11","2026-02-23","2026-03-20",
+  "2026-04-29","2026-05-03","2026-05-04","2026-05-05","2026-05-06",
+  "2026-07-20","2026-08-11","2026-09-21","2026-09-22","2026-09-23",
+  "2026-10-12","2026-11-03","2026-11-23",
+  "2027-01-01","2027-01-11","2027-02-11","2027-02-23","2027-03-21",
+  "2027-03-22","2027-04-29","2027-05-03","2027-05-04","2027-05-05",
+  "2027-07-19","2027-08-11","2027-09-20","2027-09-23","2027-10-11",
+  "2027-11-03","2027-11-23",
+]);
+
+/* ===== 日本の取引日か判定 ===== */
+function isJPTradingDay(dateStr) {
+  const d = new Date(dateStr + "T09:00:00+09:00");
+  const dow = d.getDay();
+  if (dow === 0 || dow === 6) return false; // 土日
+  return !JP_HOLIDAYS.has(dateStr);
+}
+
+/* ===== 翌取引日を返す（土日＋祝日スキップ） ===== */
 function nextWeekday(dateStr) {
   const d = new Date(dateStr + "T09:00:00+09:00");
-  do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6);
+  do {
+    d.setDate(d.getDate() + 1);
+    const s = d.toISOString().slice(0, 10);
+    if (d.getDay() !== 0 && d.getDay() !== 6 && !JP_HOLIDAYS.has(s)) break;
+  } while (true);
   return d.toISOString().slice(0, 10);
 }
 
@@ -490,6 +514,8 @@ async function loadStopstock(existingKeys) {
     for (const days of Object.values(data)) {
       for (const dayData of days) {
         const stopDate = dayData.date;
+        // 祝日・休場日のデータはスキップ（同一銘柄が複数日付で重複掲載されるため）
+        if (!isJPTradingDay(stopDate)) continue;
         const nextDate = nextWeekday(stopDate);
         for (const stopType of ["stop_high", "stop_low"]) {
           for (const stock of (dayData[stopType] || [])) {
