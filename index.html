@@ -409,29 +409,63 @@ async function loadCSV() {
 
 /* ===== 連続ストップ日数マップを構築 ===== */
 // key: "code_stop_type_stop_date" → 連続日数（1始まり）
+// CSV確定行のみ使用。実際のtrading日セットを基準にするので祝日を自動考慮。
 let streakMap = {};
 function buildStreaks(rows) {
+  // CSV確定行のみ（pending除外）
+  const csvRows = rows.filter(r => !r._pending);
+
+  // 全CSV行から「実際の取引日セット」を構築（日付昇順）
+  const tradingDays = [...new Set(csvRows.map(r => r.stop_date))].sort();
+  // 各日付 → 次の取引日 のマップ
+  const nextTradingDay = {};
+  for (let i = 0; i + 1 < tradingDays.length; i++) {
+    nextTradingDay[tradingDays[i]] = tradingDays[i + 1];
+  }
+
+  // 銘柄×方向ごとに stop_date を集める
   const groups = {};
-  for (const r of rows) {
+  for (const r of csvRows) {
     if (!r.stop_date || !r.code || !r.stop_type) continue;
     const key = `${r.code}_${r.stop_type}`;
     if (!groups[key]) groups[key] = new Set();
     groups[key].add(r.stop_date);
   }
+
   const result = {};
   for (const [key, dateSet] of Object.entries(groups)) {
-    const sorted = [...dateSet].sort(); // 昇順
+    const sorted = [...dateSet].sort();
     for (let i = 0; i < sorted.length; i++) {
       let streak = 1;
       if (i > 0) {
-        const prevNext = nextWeekday(sorted[i - 1]);
-        if (prevNext === sorted[i]) {
+        // 前日の「次の取引日」が現在日と一致すれば連続
+        if (nextTradingDay[sorted[i - 1]] === sorted[i]) {
           streak = (result[`${key}_${sorted[i - 1]}`] || 1) + 1;
         }
       }
       result[`${key}_${sorted[i]}`] = streak;
     }
   }
+
+  // pending行にも直前CSV日のstreakを引き継ぐ
+  // （最後のCSV stop_date の翌取引日が pending の stop_date と一致する場合）
+  const pendingRows = rows.filter(r => r._pending);
+  for (const r of pendingRows) {
+    if (!r.stop_date || !r.code || !r.stop_type) continue;
+    const key = `${r.code}_${r.stop_type}`;
+    const csvKey = key; // same key as CSV groups
+    // 直前のCSV stop_date を探す
+    const csvDates = (groups[csvKey] ? [...groups[csvKey]].sort() : []);
+    if (csvDates.length > 0) {
+      const lastCsvDate = csvDates[csvDates.length - 1];
+      // nextWeekday ベースで1日先が pending の stop_date なら連続とみなす
+      if (nextWeekday(lastCsvDate) === r.stop_date) {
+        const prevStreak = result[`${key}_${lastCsvDate}`] || 1;
+        result[`${key}_${r.stop_date}`] = prevStreak + 1;
+      }
+    }
+  }
+
   return result;
 }
 
