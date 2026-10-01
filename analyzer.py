@@ -67,7 +67,7 @@ def prev_business_day(d: date) -> date:
 # ── データ取得 ────────────────────────────────────────────────────────────────
 
 def fetch_stop_data() -> dict:
-    """stopstock.github.io から stock_data.json を取得"""
+    """raw.githubusercontent.com (stopstock/stop-data) から stock_data.json を取得"""
     print("stock_data.json 取得中...")
     resp = requests.get(STOP_DATA_URL, timeout=30)
     resp.raise_for_status()
